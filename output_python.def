@@ -1,0 +1,132 @@
+include: output.def
+
+page: output_python, output_main
+    output_dir: lib/MyDef
+    ext: py
+    package: MyDef::output_python
+    comment: #
+
+subcode: init_page
+    $map dbl_list, globals, imports
+
+subcode: parsecode
+    $if $l=~/^\$(\w+)\s*(.*?)\s*$/
+        my ($func, $param)=($1, $2)
+        $if $func eq "global"
+            my @tlist=split /,\s*/, $param
+            $foreach $v in @tlist
+                $call dbl_push, globals, $v
+            return 0
+        $elif $func eq "import"
+            $call dbl_push, imports, $param
+            return 0
+        $elif $func eq "list"
+            $call list_functions
+            return 0
+        $elif $func=~/^(if|elif|while)$/
+            push @$out, "$func $param:"
+            return 0
+        $elif $func=~/^(def|for)$/
+            push @$out, "$func $param:"
+            return 0
+        $elif $func=~/^do$/
+            push @$out, "while 1: $(comment) \$do"
+            push @$out, "INDENT"
+            push @$out, "BLOCK"
+            push @$out, "break"
+            push @$out, "DEDENT"
+            return "NEWBLOCK-do"
+        $elif $func eq "else"
+            push @$out, "else:"
+            return 0
+        $elif $func eq "if_match"
+            $call if_match
+            return 0
+
+    $elif $l=~/^NOOP POST_MAIN/
+        $call autolist_functions
+        return 0
+
+    $call @parsecode_filter
+    push @$out, $l
+    return 0
+
+    # --------------------------------- 
+    subcode: if_match
+        #-- assumes global: src, src_pos, src_len
+        my $n=0
+        $if length($param)==1
+            $n=1
+        $elif $param=~/^([^*|?+()\[\]{}'"]+)$/
+            $n=length($param)
+        $if $n>0
+            return single_block_pre_post(["if src_pos+$n<=src_len and src[src_pos:src_pos+$n]=='$param':", "INDENT", "src_pos+=$n"],["DEDENT"])
+        $else
+            $global $re_index=0, %re_cache
+            $call dbl_push, imports, "re"
+            my $re
+            $if $param!~/^r"/
+                $param = "r\"$param\""
+            $if !$re_cache{$param}
+                $re_index++
+                my $blk=MyDef::compileutil::get_named_block("regex_compile")
+                push @$blk, "re$re_index = re.compile($param)\n"
+                $re="re$re_index"
+                $re_cache{$param}=$re
+            $else
+                $re=$re_cache{$param}
+
+            return single_block_pre_post(["m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
+
+
+    # --------------------------------- 
+    subcode: parsecode_filter
+        $if $l=~/^(def|if|elif|else|while|for)\b(.*?):?\s*$/
+            $l="$1$2:"
+        $elif $l=~/^([\w\.]+):\s*(.*)$/
+            $l="$1($2)"
+        $elif $l=~/^(print)\s+(.*)$/
+            $l="$1($2)"
+
+subcode: dumpout
+    $if @imports
+        $foreach $t in @imports
+            push @$f, "import $t\n"
+    $if @$fn_block
+        $dump->{fn_block}=$fn_block
+        unshift @$out, "INCLUDE_BLOCK fn_block"
+
+#---------------------------------------- 
+subcode: list_functions
+    my @tlist=split /,\s*/, $param
+    $foreach $name in @tlist
+        my $code = $MyDef::def->{codes}->{$name}
+        $call parse_function
+        $code->{_listed}=1
+
+subcode: autolist_functions
+    my $mainfunc = $MyDef::def->{codes}->{main}
+    $if $mainfunc
+        $mainfunc->{index}=-1
+
+    $global $fn_block=[]
+    &call replace_output, $fn_block
+        &call each_subcode, fn
+            $if !$code->{_listed}
+                # $name, $code
+                $call parse_function
+
+subcode: parse_function
+    my $pline
+    my $params=$code->{params}
+    $if $#$params>=0
+        $pline=join(", ", @$params)
+
+    push @$out, "def $name($pline):"
+    push @$out, "INDENT"
+    $code->{scope}="list_sub"
+    MyDef::compileutil::list_sub($code)
+    push @$out, "DEDENT"
+    push @$out, "NEWLINE"
+
+

@@ -1,0 +1,12 @@
+macros:
+    comment: #
+
+subcode: basic_frame
+    $(block:_main)
+        $call @main2
+    $if __name__ == "__main__"
+        main()
+
+fncode: main
+    DUMP_STUB _main
+
