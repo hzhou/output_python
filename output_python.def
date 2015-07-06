@@ -39,6 +39,8 @@ subcode: parsecode
         $elif $func eq "else"
             push @$out, "else:"
             return 0
+        $elif $func eq "print"
+            $call parsecode_print
         $elif $func eq "if_match"
             $call if_match
             return 0
@@ -55,28 +57,27 @@ subcode: parsecode
     subcode: if_match
         #-- assumes global: src, src_pos, src_len
         my $n=0
-        $if length($param)==1
-            $n=1
-        $elif $param=~/^([^*|?+()\[\]{}'"]+)$/
-            $n=length($param)
-        $if $n>0
-            return single_block_pre_post(["if src_pos+$n<=src_len and src[src_pos:src_pos+$n]=='$param':", "INDENT", "src_pos+=$n"],["DEDENT"])
-        $else
-            $global $re_index=0, %re_cache
-            $call dbl_push, imports, "re"
-            my $re
-            $if $param!~/^r"/
-                $param = "r\"$param\""
-            $if !$re_cache{$param}
-                $re_index++
-                my $blk=MyDef::compileutil::get_named_block("regex_compile")
-                push @$blk, "re$re_index = re.compile($param)\n"
-                $re="re$re_index"
-                $re_cache{$param}=$re
-            $else
-                $re=$re_cache{$param}
+        $if length($param)==1 and $param!~/\w/
+            return single_block_pre_post(["if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1"],["DEDENT"])
 
-            return single_block_pre_post(["m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
+        $if $param=~/^([^*|?+()\[\]{}'"]+)$/
+            $param="r\"$param\\b\""
+
+        $global $re_index=0, %re_cache
+        $call dbl_push, imports, "re"
+        my $re
+        $if $param!~/^r"/
+            $param = "r\"$param\""
+        $if !$re_cache{$param}
+            $re_index++
+            my $blk=MyDef::compileutil::get_named_block("regex_compile")
+            push @$blk, "re$re_index = re.compile($param)\n"
+            $re="re$re_index"
+            $re_cache{$param}=$re
+        $else
+            $re=$re_cache{$param}
+
+        return single_block_pre_post(["m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
 
 
     # --------------------------------- 
@@ -130,3 +131,79 @@ subcode: parse_function
     push @$out, "NEWLINE"
 
 
+#---------------------------------------- 
+subcode: parsecode_print
+    my $str=$param
+    my $need_escape
+    $if $str=~/^\s*\"(.*)\"\s*$/
+        $str=$1
+    $else
+        $need_escape=1
+
+    my %colors=(red=>31,green=>32,yellow=>33,blue=>34,magenta=>35,cyan=>36)
+
+    my @fmt_list
+    my @seg_list
+
+    my @group
+    my $n_escape=0
+    &call parse_loop, $str
+        &call if_lex, \$
+            &call if_lex, (red|green|yellow|blue|magenta|cyan)
+                #---------------------------------------- 
+                #- $print $green ---------
+                push @fmt_list, "\\x1b[$colors{$1}m"
+                $n_escape++
+                &call if_lex, \{
+                    push @group, $1
+            &call if_lex, (\w+)
+                $call wrap_fmt_list
+                push @seg_list, $1
+            $else
+                push @fmt_list, '$'
+
+        &call if_lex, (\\.)
+            push @fmt_list, $1
+        $elif $str=~/\G"/gc
+            $if $need_escape
+                push @fmt_list, "\\\""
+            $else
+                push @fmt_list, "\""
+        &call if_lex, \}
+            #---------------------------------------- 
+            #- $print $green{some text}
+            $if @group
+                pop @group
+                $if !@group
+                    push @fmt_list, "\\x1b[0m"
+                    $n_escape=0
+                $else
+                    my $c=$group[-1]
+                    push @fmt_list, "\\x1b[$colors{$c}m"
+                    $n_escape++
+            $else
+                push @fmt_list, '}'
+        $elif $str=~/\G[^\$\}"]+/gc
+            push @fmt_list, $&
+
+    $call wrap_fmt_list
+
+    my $tail=$fmt_list[-1]
+    $if $tail=~/(.*)-$/
+        $fmt_list[-1]=$1
+    $elif $tail!~/\\n$/
+        push @fmt_list, "\\n"
+    $if $n_escape
+        push @fmt_list, "\\x1b[0m"
+
+
+    my $p = "print"
+    push @$out, "$p(".join(', ',@seg_list).");"
+    return
+
+    # -----------------
+    subcode: wrap_fmt_list
+        $if @fmt_list
+            my $t = join('', @fmt_list)
+            @fmt_list=()
+            push @seg_list, "\"$t\""

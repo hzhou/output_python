@@ -6,6 +6,7 @@ subcode: parse_init
         src_len=len(src)
         src_pos=0
 
+    $call @init
     BLOCK
 
     # ----------------------------
@@ -102,12 +103,14 @@ subcode: parse_frame
         cur_type: cur[1]
 
     stack=[('', 'boc')]
-    $call @init
     &call parse_init
         #---- loop over each token --------
+        $call debug_start
         $while 1
             #-- lexer ------
             $do
+                &call on_debug
+                    $call debug_match
                 $if src_pos>=src_len
                     cur = ("", "eof")
                     break
@@ -116,6 +119,8 @@ subcode: parse_frame
 
             #-- (reduce) -----------------
             $do
+                &call on_debug
+                    $call debug_process
                 $call @process
 
             $if cur is None
@@ -132,7 +137,37 @@ subcode: parse_frame
         #---- ------------------
         $call @pre_return
         $if len(stack)!=2
-            n = len(stack)
-            raise Exception("unreduced parse stack")
+            $call error, "unreduced parse stack"
         return stack[1]
+
+    # ---------------------
+    subcode: error(@msg)
+        $print stack: $stack
+        raise Exception($(msg))
+
+    # ---------------------
+    subcode: debug_start
+        $(if:debug)
+            debug_pos=$(debug)
+            last_pos=0
+            last_cur=None
+            last_len=0
+
+    subcode: on_debug
+        $(if:debug)
+            $if src_pos > debug_pos
+                BLOCK
+
+    subcode: debug_match
+        $print start_of_match: src_pos=$src_pos
+
+    subcode: debug_process
+        $print process: cur=$cur
+        stack_len=len(stack)
+        $if src_pos==last_pos and cur==last_cur and stack_len==last_len
+            print "cur: ", cur
+            $call error, "dead loop in process"
+        last_pos=src_pos
+        last_cur=cur
+        last_len=stack_len
 
