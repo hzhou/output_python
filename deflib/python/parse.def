@@ -29,29 +29,6 @@ subcode: parse_init
 
 
     # ---- with re module -------------------
-    subcode: if_match
-        $call re_measure_keyword, $(pattern)
-        $(if:n=0)
-            $import re
-            $(autoinc:re)
-
-            $(if:!pattern~r")
-                $(set:pattern=r"$(pattern)")
-                $(if:re_flag)
-                    $(set:pattern=$(pattern), $(re_flag))
-
-            $(block:regex_compile)
-                re$(re) = re.compile($(pattern))
-            m = re$(re).match(src, src_pos)
-            # m = re.match(r"$(pattern)", src[i:])
-            if m:
-                src_pos=m.end()
-                BLOCK
-        $(else)
-            $if src_pos+$(n)<=src_len and src[src_pos:src_pos+$(n)]=='$(pattern)'
-                src_pos+=$(n)
-                BLOCK
-
     subcode: if_match_single(@pattern)
         $if_match $(pattern)
             BLOCK
