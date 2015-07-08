@@ -77,7 +77,7 @@ subcode: parsecode
         $else
             $re=$re_cache{$param}
 
-        return single_block_pre_post(["m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
+        return single_block_pre_post(["$(comment) $param", "m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
 
 
     # --------------------------------- 

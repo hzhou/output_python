@@ -12,16 +12,19 @@ def calc(src):
     stack=[]
     while 1:
         while 1: # $do
+            # r"\s+"
             m = re1.match(src, src_pos)
             if m:
                 src_pos=m.end()
                 continue
+            # r"[\d\.]+"
             m = re2.match(src, src_pos)
             if m:
                 src_pos=m.end()
                 num = float(m.group(0))
                 cur=( num, "num")
                 break
+            # r"[-+*/]"
             m = re3.match(src, src_pos)
             if m:
                 src_pos=m.end()
