@@ -37,6 +37,7 @@ In addition to the general macro facilities provided by MyDef, output_python add
         cd MyDef-output_python
         pmake
         make
+        cd ..
 
 6. `mydef_make`  # again to pull the sub Makefile
 
