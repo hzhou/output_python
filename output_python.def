@@ -60,13 +60,14 @@ subcode: parsecode
         $if length($param)==1 and $param!~/\w/
             return single_block_pre_post(["if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1"],["DEDENT"])
 
+        #-- keyword --
         $if $param=~/^([^*|?+()\[\]{}'"]+)$/
             $param="r\"$param\\b\""
 
         $global $re_index=0, %re_cache
         $call dbl_push, imports, "re"
         my $re
-        $if $param!~/^r"/
+        $if $param!~/^r['"]/
             $param = "r\"$param\""
         $if !$re_cache{$param}
             $re_index++

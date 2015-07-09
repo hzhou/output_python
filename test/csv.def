@@ -1,0 +1,82 @@
+page: csv, basic_frame
+    module: python
+
+    s="1, 2, \"\"\"3\"\"\"\n 4,5, 6\n"
+    $(if:0)
+        print csv_simple(s)
+    $(else)
+        print csv(s)
+
+fncode: csv_simple(src)
+    row_list=[]
+    $for line in src.split('\n')
+        row_list.append: re.split(r',\s*', line.lstrip())
+    return row_list
+
+#---- parse csv -------------------
+fncode: csv(src)
+    src_len=len(src)
+    src_pos=0
+
+    DUMP_STUB regex_compile
+
+    #- start of line ----------
+    is_sol=1
+    #- 3 levels of list ---------
+    row_list=[]
+    cur_row=[]
+    cur_rec=""
+    $while src_pos<src_len
+        $if is_sol
+            #-- we can easily extend csv by adding comments
+            #-    with recognizable patterns
+            #-  This is the place to match them out
+            #-    e.g. $if_match [ \t]*#.*?\n
+            #-             pass
+            is_sol=0
+            $if_match [ \t]+
+                #-- skip spaces --
+
+        #-- delimiters ---------------
+        $if_match ,[ \t]*
+            $call push_rec
+            continue
+
+        $if_match \r?\n
+            $call push_rec
+            row_list.append: cur_row
+            cur_row=[]
+            continue
+
+        #-- records, quoted or unquoted -----
+        #-  What about -- "a, b, c" she said
+        #-  What about -- she said "a, b, c"
+        #-    let's leave it as "undefined"
+        $if_match r'"([^"]|"")*"'
+            cur_rec+=m.group(0)
+            continue
+
+        $if_match [^,\n]*
+            cur_rec+=m.group(0)
+            continue
+
+    #-- potentially wrap last line
+    $if !is_sol
+        $call push_rec
+        row_list.append: cur_row
+
+    return row_list
+
+    #-- optionaly clean up each record before push to list
+    #-  wherever we do not want to repeat ourselves, use subcode
+    subcode: push_rec
+        # -- tailing spaces (before , and \n)
+        cur_rec = cur_rec.rstrip()
+        # -- un-quote
+        $if len(cur_rec)>0 and cur_rec[0]=='"' and cur_rec[-1]=='"'
+            cur_rec=re.sub('""', '"', cur_rec[1:-1])
+
+        cur_row.append: cur_rec
+        cur_rec=""
+        
+
