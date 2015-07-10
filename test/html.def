@@ -1,0 +1,162 @@
+#---- page ------------------
+include: python/parse.def
+
+page: html, basic_frame
+    module: python
+
+    s = "<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Test</h1><p>Hello World!</p></body></html>"
+    page = parse_html(s)
+    debug_dom(page["dom"])
+
+#---------------------------------------- 
+#-- parse_html --------------
+fncode: parse_html(src)
+    tag_stack=[]
+    cur_list=[]
+    tag_stack.append: {'_name':'root', '_list':cur_list}
+
+    $call parse_it
+
+    return {"dom":tag_stack[0]}
+
+    #-- parse loop--------------------------
+    subcode: parse_it
+        &call parse_loop
+            $if_match <!--.*?-->
+                #- comment ----
+                continue
+            $if_match r"<!DOCTYPE.*?>", re.I
+                #- doctype ----
+                continue
+            $if_match [^<]+
+                #- text node ----
+                cur_list.append: m.group(0)
+                continue
+            $if_match <(\w+)(.*?)>
+                #- start tag ----
+                s_name=m.group(1)
+                s_attr=m.group(2)
+                $call match_start_tag
+                continue
+            $if_match </(\w+).*?>
+                #- end tag ----
+                s_name=m.group(1)
+                $call match_end_tag
+                continue
+
+    #-- start_tag ----------------------------
+    subcode: match_start_tag
+        tag = {'_name':s_name}
+        parse_attribute(tag, s_attr)
+
+        #- append to the child node list 
+        cur_list.append: tag
+
+        $if '/' in tag or re.match(r"area|base|br|col|embed|hr|img|input|keygen|link|meta|param|source|track|wbr", s_name, re.I)
+            #- self closed
+            pass
+        $elif re.match(r"script|style|textarea|title", s_name, re.I)
+            #- raw text: let's grab it
+            $call scan_raw_text
+            $(if:0)
+                $if s_name.lower() == "style"
+                    $call @parse_style_sheet
+                $elif s_name.lower() == "script"
+                    $call @parse_script
+        $else
+            #- for the rest, push a new context
+            tag_stack.append: tag
+            cur_list=[]
+            tag['_list'] = cur_list
+
+    #- end_tag ----------------------------
+    subcode: match_end_tag
+        $if s_name == tag_stack[-1]['_name']
+            tag_stack.pop()
+            cur_list=tag_stack[-1]['_list']
+        $else
+            #- error --
+            #-    drop missed tags or do nothing
+            j=len(tag_stack)-2
+            while j>0:
+                if s_name == tag_stack[j]['_name']
+                    while len(tag_stack)>=j
+                        tag_stack.pop()
+                    cur_list=tag_stack[-1]['_list']
+                    break
+                j-=1
+
+    #-- raw_text --------------------------
+    subcode: scan_raw_text
+        i_start=src_pos
+        &call sub_loop
+            $if_match ([^<]|<[^/])+
+                #- grab until a clsoing tag
+                continue
+            $if_match </(\w+).*?>
+                #- check whether it is the right closing tag
+                $if m.group(1)==s_name
+                    break
+                $else
+                    continue
+            #- skip any unforseen weird character
+            src_pos+=1
+
+        i_end=src_pos
+        $(export:raw_text=src[i_start:i_end])
+        tag['_text'] = src[i_start:i_end]
+
+
+#---- parse_attribute ------------------------------------ 
+fncode: parse_attribute(tag, src)
+    &call parse_loop
+        $if_match \s+
+            #- skip spaces and newline --
+            continue
+        $if_match /
+            #- self closing --
+            tag['/']=1
+            continue
+        $if_match ([^\s'\"\\=<>`]+)
+            #- got a name --
+            s_attr_name=m.group(1)
+            $if_match \s*=\s*
+                #- has value
+                $call parse_attr_value
+            $else
+                #- no value (set to 1)
+                tag[s_attr_name]=1
+            continue
+
+    #- value can also be complicated ...
+    subcode: parse_attr_value
+        &call sub_loop
+            $if_match \"((?:[^\\\"]+|\\.)*)\"
+                #- double quoted value
+                tag[s_attr_name] = m.group(1)
+                break
+            $if_match '((?:[^\\\']+|\\.)*)'
+                #- single quoted value
+                tag[s_attr_name] = m.group(1)
+                break
+            $if_match [^\s'\"=<>`]+
+                #- without quote
+                tag[s_attr_name] = m.group(0)
+                break
+            #- skip any unforseen error --
+            i+=1
+                    
+#---- debug_dom -------------------------------- 
+fncode: debug_dom(node)
+    $def print_node(node, level)
+        $if isinstance(node, str)
+            print "    " * level, node
+        $else
+            print "    " * level, node['_name']
+            $if "_list" in node
+                $for t in node['_list']
+                    print_node(t, level+1)
+
+    print_node(node, 0)
+
+
