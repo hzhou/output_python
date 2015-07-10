@@ -44,17 +44,6 @@ subcode: parse_init
             break
 
 
-include: ext.def
-perlcode: re_measure_keyword
-    my $n=0
-    $if $param=~/^.$/
-        $n=1
-    $elif $param=~/^([^*|?+()\[\]{}]+)$/
-        $n=length($param)
-
-    $(setmacro)("n", $n)
-
-perlcode: re_cache
 #-------------------------------
 #- e.g.
 #-    fncode: parse_html(src)
