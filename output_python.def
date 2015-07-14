@@ -94,6 +94,7 @@ subcode: dumpout
     $if @imports
         $foreach $t in @imports
             push @$f, "import $t\n"
+    unshift @$out, "DUMP_STUB regex_compile"
     $if @$fn_block
         $dump->{fn_block}=$fn_block
         unshift @$out, "INCLUDE_BLOCK fn_block"
@@ -109,6 +110,7 @@ subcode: list_functions
 subcode: autolist_functions
     my $mainfunc = $MyDef::def->{codes}->{main}
     $if $mainfunc
+        #- so main function gets listed first
         $mainfunc->{index}=-1
 
     $global $fn_block=[]
