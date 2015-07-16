@@ -113,7 +113,7 @@ subcode: parse_operator_precedence
                         $if $(cur_type) in unary_type
                             cur=(cur[0], "unary")
                             break
-                        $elif $(type:-1) in boc_type
+                        $elif $(cur_type) in boc_type
                             break
                         $else
                             print "cur: ", cur, "last type: ", $(type:-1)
