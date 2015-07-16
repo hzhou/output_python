@@ -1,4 +1,4 @@
-subcode: parse_init
+subcode: parse_frame
     $(if:!skip_src_len)
         src_len=len(src)
         src_pos=0
@@ -49,7 +49,7 @@ subcode: parse_init
 #-                pass
 
 subcode: parse_loop
-    &call parse_init
+    &call parse_frame
         &call sub_loop
             BLOCK
             $call skip_unmatched_char
@@ -57,7 +57,6 @@ subcode: parse_loop
 #---------------------------------------- 
 #- used inside a parse function
 #-   e.g. fncode: parse_expr(src, ...)
-
 subcode: parse_operator_precedence
     macros:
         atom: stack[$1][0]
@@ -70,18 +69,21 @@ subcode: parse_operator_precedence
     $-: precedence = {STRING[,]}
         'bof':0
         'eof':0
+        'boc':0
         '(':0
         ')':0
         $call @precedence
         'unary':99
 
-    atom_type=[]
+    boc_type=['(', 'boc', 'bof', 'eof']
+    atom_type=['']
     unary_type=[]
-    $call @type_list
+    right_precedences=[]
+    $call @setup
 
     stack=[('', 'bof')]
 
-    &call parse_init
+    &call parse_frame
         #- loop over each token --------
         $call debug_start
         $while 1
@@ -107,15 +109,27 @@ subcode: parse_operator_precedence
                         $call error, "two adjacent atoms"
                 $else 
                     #- operator ---------------
-                    $if $(cur_type) in unary_type
-                        $if not $(type:-1) in atom_type
+                    $if $(type:-1) not in atom_type
+                        $if $(cur_type) in unary_type
                             cur=(cur[0], "unary")
                             break
+                        $elif $(type:-1) in boc_type
+                            break
+                        $else
+                            print "cur: ", cur, "last type: ", $(type:-1)
+                            $call error, "operator in wrong context"
 
                     $if len(stack)<=1
                         break
 
-                    $if less_precedence($(cur_type), $(type:-2))
+                    $(set:p0=precedence[$(cur_type)])
+                    $(set:p1=precedence[$(type:-2)])
+                    $(set:left=$(p0) not in right_precedences)
+                    $(set:cond=$(p0)<$(p1) or $(p0)==$(p1) and $(left))
+
+                    $if $(cond)
+                        $if $(type:-2)=='bof'
+                            break
                         $call @reduce
                         continue
 
@@ -124,7 +138,7 @@ subcode: parse_operator_precedence
 
             $call @post_process
 
-            #-- (shift) -----------------
+            #- (shift) -----------------
             $if $(cur_type) == "eof"
                 break
             $elif $(cur_type)
@@ -148,6 +162,7 @@ subcode: parse_operator_precedence
         $print stack: $stack
         raise Exception($(msg))
 
+    #-- other support
     # ---------------------
     subcode: debug_start
         $(if:debug)
