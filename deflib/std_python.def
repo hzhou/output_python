@@ -24,6 +24,6 @@ perlcode: quote
 
 #---------------------
 subcode: error(@msg)
-    $print stack: $stack
+    # $print stack: $stack
     raise Exception($(msg))
 
