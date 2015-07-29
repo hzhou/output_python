@@ -109,7 +109,7 @@ subcode: list_functions
     my @tlist=split /,\s*/, $param
     $foreach $name in @tlist
         my $code = $MyDef::def->{codes}->{$name}
-        $call parse_function
+        parse_function($name, $code)
         $code->{_listed}=1
 
 subcode: autolist_functions
@@ -122,10 +122,9 @@ subcode: autolist_functions
     &call replace_output, $fn_block
         &call each_subcode, fn
             $if !$code->{_listed}
-                # $name, $code
-                $call parse_function
+                parse_function($name, $code)
 
-subcode: parse_function
+fncode: parse_function($name, $code)
     my $pline
     my $params=$code->{params}
     $if $#$params>=0
@@ -133,11 +132,22 @@ subcode: parse_function
 
     push @$out, "def $name($pline):"
     push @$out, "INDENT"
+    $call @check_sub_functions
     $code->{scope}="list_sub"
     MyDef::compileutil::list_sub($code)
     push @$out, "DEDENT"
     push @$out, "NEWLINE"
 
+    subcode: check_sub_functions
+        my $codes=$code->{codes}
+        my $cnt=0
+        &call inherit_macros, $code
+            &call iter_subcodes, fn
+                $if !$code->{_listed}
+                    parse_function($name, $code)
+                    $cnt++
+        $if $cnt>0
+            push @$out, "NEWLINE"
 
 #---------------------------------------- 
 subcode: parsecode_print

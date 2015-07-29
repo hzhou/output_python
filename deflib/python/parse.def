@@ -1,3 +1,19 @@
+# ---- with re module -------------------
+subcode: if_match_single(@pattern)
+    $if_match $(pattern)
+        BLOCK
+
+subcode: if_match_continue(@pattern)
+    $if_match $(pattern)
+        BLOCK
+        continue
+
+subcode: if_match_break(@pattern)
+    $if_match $(pattern)
+        BLOCK
+        break
+
+#---------------------------------------- 
 subcode: parse_frame
     $(if:!skip_src_len)
         src_len=len(src)
@@ -23,23 +39,6 @@ subcode: parse_frame
         $(else)
             src_pos+=1
             continue
-
-
-    # ---- with re module -------------------
-    subcode: if_match_single(@pattern)
-        $if_match $(pattern)
-            BLOCK
-
-    subcode: if_match_continue(@pattern)
-        $if_match $(pattern)
-            BLOCK
-            continue
-
-    subcode: if_match_break(@pattern)
-        $if_match $(pattern)
-            BLOCK
-            break
-
 
 #-------------------------------
 #- e.g.
@@ -156,11 +155,6 @@ subcode: parse_operator_precedence
         $if len(stack)!=2
             $call error, "unreduced parse stack"
         return stack[1]
-
-    # ---------------------
-    subcode: error(@msg)
-        $print stack: $stack
-        raise Exception($(msg))
 
     #-- other support
     # ---------------------
