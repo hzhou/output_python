@@ -13,7 +13,8 @@ subcode: parsecode
     $if $l=~/^\$(\w+)\s*(.*?)\s*$/
         my ($func, $param)=($1, $2)
         $if $func eq "global"
-            my @tlist=split /,\s*/, $param
+            # my @tlist=split /,\s*/, $param
+            my @tlist = MyDef::utils::proper_split($param)
             $foreach $v in @tlist
                 $call dbl_push, globals, $v
             return 0
