@@ -98,6 +98,7 @@ subcode: parse_operator_precedence
 
             #- (check_precedence) -----------------
             $do
+                $call @on_cur_token
                 &call on_debug
                     $call debug_process
 

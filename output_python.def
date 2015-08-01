@@ -90,6 +90,9 @@ subcode: parsecode
             $l="$1($2)"
         $elif $l=~/^(print)\s+(.*)$/
             $l="$1($2)"
+        $elif $l=~/^DUMP_STUB\s+(\w+)/
+            $global %stub
+            $stub{$1}++
 
 subcode: dumpout
     $if @imports
@@ -100,7 +103,8 @@ subcode: dumpout
         $foreach $t in @globals
             push @$f, "$t\n"
         push @$f, "\n"
-    unshift @$out, "DUMP_STUB regex_compile"
+    $if !$stub{"regex_compile"}
+        unshift @$out, "DUMP_STUB regex_compile"
     $if @$fn_block
         $dump->{fn_block}=$fn_block
         unshift @$out, "INCLUDE_BLOCK fn_block"
