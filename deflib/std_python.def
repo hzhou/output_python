@@ -2,13 +2,12 @@ macros:
     comment: #
 
 subcode: basic_frame
-    $(block:_main)
+    # I don't really see point of this, albeit works.
+    $def main
         $call @main2
+
     $if __name__ == "__main__"
         main()
-
-fncode: main
-    DUMP_STUB _main
 
 #---------------------------------------- 
 include: ext.def

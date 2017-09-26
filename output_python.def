@@ -1,4 +1,5 @@
 include: output.def
+include: macros/print.def
 
 page: output_python, output_main
     output_dir: lib/MyDef
@@ -27,7 +28,12 @@ subcode: parsecode
         $elif $func=~/^(if|elif|while)$/
             push @$out, "$func $param:"
             return 0
-        $elif $func=~/^(def|for)$/
+        $elif $func=~/^(for)$/
+            push @$out, "$func $param:"
+            return 0
+        $elif $func=~/^def$/
+            $if $param=~/^\w+$/
+                $param.="()"
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^do$/
@@ -155,78 +161,3 @@ fncode: parse_function($name, $code)
             push @$out, "NEWLINE"
 
 #---------------------------------------- 
-subcode: parsecode_print
-    my $str=$param
-    my $need_escape
-    $if $str=~/^\s*\"(.*)\"\s*$/
-        $str=$1
-    $else
-        $need_escape=1
-
-    my %colors=(red=>31,green=>32,yellow=>33,blue=>34,magenta=>35,cyan=>36)
-
-    my @fmt_list
-    my @seg_list
-
-    my @group
-    my $n_escape=0
-    &call parse_loop, $str
-        &call if_lex, \$
-            &call if_lex, (red|green|yellow|blue|magenta|cyan)
-                #---------------------------------------- 
-                #- $print $green ---------
-                push @fmt_list, "\\x1b[$colors{$1}m"
-                $n_escape++
-                &call if_lex, \{
-                    push @group, $1
-            &call if_lex, (\w+)
-                $call wrap_fmt_list
-                push @seg_list, $1
-            $else
-                push @fmt_list, '$'
-
-        &call if_lex, (\\.)
-            push @fmt_list, $1
-        $elif $str=~/\G"/gc
-            $if $need_escape
-                push @fmt_list, "\\\""
-            $else
-                push @fmt_list, "\""
-        &call if_lex, \}
-            #---------------------------------------- 
-            #- $print $green{some text}
-            $if @group
-                pop @group
-                $if !@group
-                    push @fmt_list, "\\x1b[0m"
-                    $n_escape=0
-                $else
-                    my $c=$group[-1]
-                    push @fmt_list, "\\x1b[$colors{$c}m"
-                    $n_escape++
-            $else
-                push @fmt_list, '}'
-        $elif $str=~/\G[^\$\}"]+/gc
-            push @fmt_list, $&
-
-    $call wrap_fmt_list
-
-    my $tail=$fmt_list[-1]
-    $if $tail=~/(.*)-$/
-        $fmt_list[-1]=$1
-    $elif $tail!~/\\n$/
-        push @fmt_list, "\\n"
-    $if $n_escape
-        push @fmt_list, "\\x1b[0m"
-
-
-    my $p = "print"
-    push @$out, "$p(".join(', ',@seg_list).");"
-    return
-
-    # -----------------
-    subcode: wrap_fmt_list
-        $if @fmt_list
-            my $t = join('', @fmt_list)
-            @fmt_list=()
-            push @seg_list, "\"$t\""
