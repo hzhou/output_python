@@ -20,7 +20,7 @@ subcode: parsecode
                 $call dbl_push, globals, $v
             return 0
         $elif $func eq "import"
-            $call dbl_push, imports, $param
+            add_import($param)
             return 0
         $elif $func eq "list"
             $call list_functions
@@ -48,6 +48,7 @@ subcode: parsecode
             return 0
         $elif $func eq "print"
             $call parsecode_print
+            return 0
         $elif $func eq "if_match"
             $call if_match
             return 0
@@ -72,7 +73,7 @@ subcode: parsecode
             $param="r\"$param\\b\""
 
         $global $re_index=0, %re_cache
-        $call dbl_push, imports, "re"
+        add_import("re")
         my $re
         $if $param!~/^r['"]/
             $param = "r\"$param\""
@@ -100,10 +101,16 @@ subcode: parsecode
             $global %stub
             $stub{$1}++
 
+fncode: add_import($t)
+    $call dbl_push, imports, $t
+
 subcode: dumpout
     $if @imports
         $foreach $t in @imports
-            push @$f, "import $t\n"
+            $if $t=~/(.*)\s+(from\s+\w+)$/
+                push @$f, "$2 import $1"
+            $else
+                push @$f, "import $t\n"
         push @$f, "\n"
     $if @globals
         $foreach $t in @globals

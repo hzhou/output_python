@@ -10,6 +10,16 @@ subcode: basic_frame
         main()
 
 #---------------------------------------- 
+subcode: open_r(name)
+    with open($(name), "r" as In:
+        for line in In:
+            BLOCK
+
+subcode: open_w(name)
+    with open($(name), "w" as Out:
+        BLOCK
+
+#---------------------------------------- 
 include: ext.def
 perlcode: quote
     my $var = $param
