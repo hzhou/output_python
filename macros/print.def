@@ -1,0 +1,39 @@
+include: macros_output/print.def
+
+macros:
+    printf_formats: sbcdoxXneEfFgGn
+    printf_var: %s
+    printf_python: %
+
+subcode: parsecode_print
+    $if !$param
+        push @$out, "print('')"
+    $else
+        add_import("print_function from __future__")
+        my ($n, $fmt)=fmt_string($param, 1)
+        my $add_newline = 1
+        $if $fmt=~/^"(.*)\\n"(.*)/
+            $fmt = "\"$1\"$2"
+        $else
+            $add_newline = 0
+
+        $call get_print_to
+        $if $print_to
+            $call print_to
+        $else
+            $call print_1
+
+    subcode: print_1
+        $if $add_newline
+            push @$out, "print($fmt)"
+        $else
+            push @$out, "print($fmt, end='')"
+
+    subcode: print_to
+        $if $add_newline
+            push @$out, "print($fmt, file=$print_to)"
+        $else
+            push @$out, "print($fmt, end='', file=$print_to)"
+
+        
+
