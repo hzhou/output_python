@@ -66,21 +66,18 @@ subcode: parse_operator_precedence
     #- prefix operators are grouped as 'unary'
     #- postfix operators are processed within match
     $-: precedence = {STRING[,]}
-        'bof':0
-        'eof':0
         'boc':0
         '(':0
         ')':0
         $call @precedence
         'unary':99
 
-    boc_type=['(', 'boc', 'bof', 'eof']
+    boc_type=['(', 'boc']
     atom_type=['']
     unary_type=[]
-    right_precedences=[]
     $call @setup
 
-    stack=[('', 'bof')]
+    stack=[('global', 'boc')]
 
     &call parse_frame
         #- loop over each token --------
@@ -91,13 +88,17 @@ subcode: parse_operator_precedence
                 &call on_debug
                     $call debug_match
                 $if src_pos>=src_len
-                    cur = ("", "eof")
+                    # all 0 precedence closing opeartor is of type ')'
+                    cur = ("eof", ")")
+                    $if $(type:-1)=="boc"
+                        stack.append: ("", "")
                     break
                 $call @match
                 $call skip_unmatched_char
 
             #- (check_precedence) -----------------
             $do
+                $call @on_cur_token
                 &call on_debug
                     $call debug_process
 
@@ -121,13 +122,15 @@ subcode: parse_operator_precedence
                     $if len(stack)<=1
                         break
 
-                    $(set:p0=precedence[$(cur_type)])
-                    $(set:p1=precedence[$(type:-2)])
-                    $(set:left=$(p0) not in right_precedences)
-                    $(set:cond=$(p0)<$(p1) or $(p0)==$(p1) and $(left))
+                    $(if:hascode:less_precedence)
+                        $(set:cond=less_precedence($(cur_type), $(type:-2)))
+                    $(else)
+                        $(set:p0=precedence[$(cur_type)])
+                        $(set:p1=precedence[$(type:-2)])
+                        $(set:cond=$(p0)<=$(p1))
 
                     $if $(cond)
-                        $if $(type:-2)=='bof'
+                        $if len(stack)==2
                             break
                         $call @reduce
                         continue
@@ -138,7 +141,7 @@ subcode: parse_operator_precedence
             $call @post_process
 
             #- (shift) -----------------
-            $if $(cur_type) == "eof"
+            $if $(cur_atom) == "eof" and $(cur_type)==")"
                 break
             $elif $(cur_type)
                 stack.append(cur)
