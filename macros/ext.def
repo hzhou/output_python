@@ -1,0 +1,11 @@
+subcode: out_block(if, param)
+    push @$out, "$(if) $(param):"
+    push @$out, "INDENT"
+    BLOCK
+    push @$out, "DEDENT"
+
+subcode: else_block
+    push @$out, "else:"
+    push @$out, "INDENT"
+    BLOCK
+    push @$out, "DEDENT"
