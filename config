@@ -1,3 +1,3 @@
 include_path: $(MYDEFSRC)
-output_dir: MyDef-output_python
+output_dir: out
 module: perl
