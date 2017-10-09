@@ -31,8 +31,18 @@ perlcode: quote
         push @$out, "\"\"\"\n"
 
 
+#---- timing --------------------------- 
+subcode: start_time
+    $import datetime from datetime
+    start_time = datetime.now()
+
+subcode: print_time(msg)
+    time_diff = datetime.now()-start_time
+    $print $(msg): $time_diff
+
 #---------------------
 subcode: error(@msg)
     # $print stack: $stack
     raise Exception($(msg))
+
 
