@@ -8,7 +8,7 @@ page: output_python, output_main
     comment: #
 
 subcode: init_page
-    $map dbl_list, globals, imports, future
+    $map dbl_list, globals, imports, imports_future
 
 subcode: parsecode
     $if $l=~/^\$(\w+)\s*(.*?)\s*$/
@@ -112,13 +112,14 @@ subcode: parsecode
 fncode: add_import($t)
     $call dbl_push, imports, $t
 
-fncode: future_import($t)
-    $call dbl_push, future, $t
+fncode: add_import_future($t)
+    $call dbl_push, imports_future, $t
 
 subcode: dumpout
-    $if @future
-        push $f, "from __future__ import ".join(', ', @future)."\n"
-        push @$f, "\n"
+    $if $page->{use_python} eq "2"
+        $if @imports_future
+            my $t = join(", ", @imports_future)
+            push @$f, "from __future__ import $t\n"
     $if @imports
         $foreach $t in @imports
             $if $t=~/(.*)\s+(from\s+\w+)$/
