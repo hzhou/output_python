@@ -1,5 +1,4 @@
 subcode: _autoload
-    import Tkinter as tk
     from Tkinter import *
 
 subcode: tkinter
