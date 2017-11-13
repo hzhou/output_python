@@ -29,7 +29,15 @@ subcode: parsecode
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^(for)$/
-            push @$out, "$func $param:"
+            $if $param =~/^(\w+)=(.*)/
+                my ($v, $t) =($1, $2)
+                $if $t=~/^0:([^:]+)$/
+                    $t=$1
+                $else
+                    $t=~s/:/,/g
+                push @$out, "for $v in range($t):"
+            $else
+                push @$out, "$func $param:"
             return 0
         $elif $func=~/^def$/
             $if $param=~/^\w+$/
@@ -173,4 +181,3 @@ fncode: parse_function($name, $code)
         $if $cnt>0
             push @$out, "NEWLINE"
 
-#---------------------------------------- 
