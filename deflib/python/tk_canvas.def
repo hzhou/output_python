@@ -1,0 +1,36 @@
+subcode: _autoload
+    import Tkinter as tk
+    from Tkinter import *
+
+subcode: tk_canvas
+    $(if:!width)
+        $(set:width=800)
+        $(set:height=600)
+    $(if:!background)
+        $(set:background=#eeeeee)
+
+    win_main = Tk()
+    C = Canvas(win_main, width=$(width), height=$(height), background="$(background)")
+    
+    $call main2
+
+    C.pack()
+    mainloop()
+
+#----------------------------------------------- 
+subcode: line(@args)
+    C.create_line($(args))
+subcode: rect(@args)
+    C.create_rectangle($(args))
+subcode: oval(@args)
+    C.create_oval($(args))
+subcode: arc(@args)
+    C.create_arc($(args))
+subcode: text(@args)
+    C.create_text($(args))
+subcode: image(@args)
+    C.create_image($(args))
+
+
+
+
