@@ -1,0 +1,33 @@
+subcode: _autoload
+    import Tkinter as tk
+    from Tkinter import *
+
+subcode: tkinter
+    win_main = Tk()
+    $call main2
+    win_main.mainloop()
+
+    subcode: add_canvas(w, h)
+        C = Canvas(win_main, width=$(w), height=$(h))
+        BLOCK
+        C.pack()
+
+    subcode: animate(delay)
+        def animate():
+            BLOCK
+            win_main.after($(delay), animate)
+
+        animate()
+
+#---- examples -----
+    C.config(background='#eeeeee')
+    # C.create_line($(args))
+    # C.create_rectangle($(args))
+    # C.create_oval($(args))
+    # C.create_arc($(args))
+    # C.create_text($(args))
+    # C.create_image($(args))
+
+
+
+
