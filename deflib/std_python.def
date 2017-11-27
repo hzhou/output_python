@@ -1,3 +1,5 @@
+#-- define macro PYTHON3 for python 3 in deflib/python/_config.def
+include: python/_config.def?
 macros:
     comment: #
 

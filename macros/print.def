@@ -9,7 +9,6 @@ subcode: parsecode_print
     $if !$param
         push @$out, "print('')"
     $else
-        add_import_future("print_function")
         my ($n, $fmt)=fmt_string($param, 1)
         my $add_newline = 1
         $if $fmt=~/^"(.*)\\n"(.*)/
