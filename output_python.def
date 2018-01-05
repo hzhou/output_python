@@ -35,6 +35,9 @@ subcode: parsecode
         $elif $func=~/^(if|elif|while)$/
             push @$out, "$func $param:"
             return 0
+        $elif $func=~/^foreach (.*)\s+in\s+(.*)/
+            push @$out, "for $1 in $2:"
+            return 0
         $elif $func=~/^(for)$/
             $if $param =~/^(\w+)=(.*)/
                 my ($v, $t) =($1, $2)
