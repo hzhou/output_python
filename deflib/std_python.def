@@ -13,12 +13,12 @@ subcode: basic_frame
 
 #---------------------------------------- 
 subcode: open_r(name)
-    with open($(name), "r" as In:
+    with open($(name), "r") as In:
         for line in In:
             BLOCK
 
 subcode: open_w(name)
-    with open($(name), "w" as Out:
+    with open($(name), "w") as Out:
         BLOCK
 
 #---------------------------------------- 
