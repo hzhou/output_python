@@ -19,6 +19,7 @@ subcode: open_r(name)
 
 subcode: open_w(name)
     with open($(name), "w") as Out:
+        $(set:print_to=Out)
         BLOCK
 
 #---------------------------------------- 
