@@ -1,5 +1,6 @@
 include: output.def
 include: macros/print.def
+include: macros/re.def
 
 page: output_python, output_main
     output_dir: lib/MyDef
@@ -33,6 +34,7 @@ subcode: parsecode
             $call list_functions
             return 0
         $elif $func=~/^(if|elif|while)$/
+            $call @check_if_regex
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^foreach (.*)\s+in\s+(.*)/
@@ -80,34 +82,6 @@ subcode: parsecode
     return 0
 
     # --------------------------------- 
-    subcode: if_match
-        #-- assumes global: src, src_pos, src_len
-        my $n=0
-        $if length($param)==1 and $param!~/\w/
-            return single_block_pre_post(["if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1"],["DEDENT"])
-
-        #-- keyword --
-        $if $param=~/^([^*|?+()\[\]{}'"]+)$/
-            $param="r\"$param\\b\""
-
-        $global $re_index=0, %re_cache
-        add_import("re")
-        my $re
-        $if $param!~/^r['"]/
-            $param = "r\"$param\""
-        $if !$re_cache{$param}
-            $re_index++
-            my $blk=MyDef::compileutil::get_named_block("regex_compile")
-            push @$blk, "re$re_index = re.compile($param)\n"
-            $re="re$re_index"
-            $re_cache{$param}=$re
-        $else
-            $re=$re_cache{$param}
-
-        return single_block_pre_post(["$(comment) $param", "m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
-
-
-    # --------------------------------- 
     subcode: parsecode_filter
         $if $l=~/^(def|if|elif|else|while|for)\b(.*?):?\s*$/
             # fix forgotten :
@@ -138,7 +112,7 @@ subcode: dumpout
             push @$f, "\n"
     $if @imports
         $foreach $t in @imports
-            $if $t=~/(.*)\s+(from\s+\w+)$/
+            $if $t=~/(.*)\s+(from\s+\S+)$/
                 push @$f, "$2 import $1\n"
             $else
                 push @$f, "import $t\n"
