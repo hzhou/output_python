@@ -105,6 +105,7 @@ fncode: add_import_future($t)
     $call dbl_push, imports_future, $t
 
 subcode: dumpout
+    $call @fix_template
     $if !$PYTHON3
         $if @imports_future
             my $t = join(", ", @imports_future)
@@ -126,6 +127,22 @@ subcode: dumpout
     $if @$fn_block
         $dump->{fn_block}=$fn_block
         unshift @$out, "INCLUDE_BLOCK fn_block"
+
+    subcode: fix_template
+        my $i=0
+        $while $out->[$i]=~/^\s*$|^\s*#|^from .* import|^import /
+            $if $out->[$i]=~/^import\s+(.*)/
+                push @imports, $1
+            $elif $out->[$i]=~/^from\s+(.*)\s+import\s+(.*)/
+                $if $1 eq "__future__"
+                    push @imports_future, $2
+                $else
+                    push @imports, "$2 from $1"
+            $i++
+        $if $i>0
+            $while $i>0
+                shift @$out
+                $i--
 
 #---------------------------------------- 
 subcode: list_functions
