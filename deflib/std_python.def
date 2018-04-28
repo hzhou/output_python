@@ -1,3 +1,5 @@
+#-- define macro PYTHON3 for python 3 in deflib/python/_config.def
+include: python/_config.def?
 macros:
     comment: #
 
@@ -11,12 +13,13 @@ subcode: basic_frame
 
 #---------------------------------------- 
 subcode: open_r(name)
-    with open($(name), "r" as In:
+    with open($(name), "r") as In:
         for line in In:
             BLOCK
 
 subcode: open_w(name)
-    with open($(name), "w" as Out:
+    with open($(name), "w") as Out:
+        $(set:print_to=Out)
         BLOCK
 
 #---------------------------------------- 

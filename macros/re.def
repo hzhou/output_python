@@ -1,0 +1,73 @@
+subcode: check_if_regex
+    $if $param=~/(\S+)\s*=~\s*\/(.*)\/(\w*)/
+        my ($s, $pat, $flags)=($1,$2,$3)
+        my $caps
+        $if $param=~/->\s*([\w\s,]+)$/
+            $caps=$1
+        add_import("re")
+        my $re="r'$pat', $s"
+        $call @append_flags
+
+        &call return_newblock, $func
+            $if !$caps
+                push @src, "$func re.search($re):"
+                push @src, "INDENT"
+                push @src, "BLOCK"
+                push @src, "DEDENT"
+            $else
+                $if $func eq "elif"
+                    die "regex doesn't work with elif\n"
+                push @src, "_m=re.search($re)"
+                push @src, "$func _m:"
+                push @src, "INDENT"
+                $call @add_caps
+                push @src, "BLOCK"
+                push @src, "DEDENT"
+
+    subcode: append_flags
+        $if $flags
+            my @tlist=split //, $flags
+            my @flist
+            $foreach $t in @tlist
+                $if $t=~/([imsx])/
+                    push @flist, "re.".uc($1)
+
+            $if @flist
+                $re.=", ".join('|', @flist)
+
+    subcode: add_caps
+        $if $caps
+            my @cap_list=split /,\s*/, $caps
+            my $i=0
+            $foreach $cap in @cap_list
+                $i++
+                push @src, "$cap = _m.group($i)"
+        
+# --------------------------------- 
+#-- assumes global: src, src_pos, src_len
+subcode: if_match
+    my $n=0
+    $if length($param)==1 and $param!~/\w/
+        return single_block_pre_post(["if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1"],["DEDENT"])
+
+    #-- keyword --
+    $if $param=~/^([^*|?+()\[\]{}'"]+)$/
+        $param="r\"$param\\b\""
+
+    $global $re_index=0, %re_cache
+    add_import("re")
+    my $re
+    $if $param!~/^r['"]/
+        $param = "r\"$param\""
+    $if !$re_cache{$param}
+        $re_index++
+        my $blk=MyDef::compileutil::get_named_block("regex_compile")
+        push @$blk, "re$re_index = re.compile($param)\n"
+        $re="re$re_index"
+        $re_cache{$param}=$re
+    $else
+        $re=$re_cache{$param}
+
+    return single_block_pre_post(["$(comment) $param", "m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
+
+

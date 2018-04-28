@@ -1,5 +1,6 @@
 include: output.def
 include: macros/print.def
+include: macros/re.def
 
 page: output_python, output_main
     output_dir: lib/MyDef
@@ -8,7 +9,14 @@ page: output_python, output_main
     comment: #
 
 subcode: init_page
+    $global $PYTHON3
+    $if $MyDef::def->{macros}->{PYTHON3}
+        $PYTHON3=1
+
     $map dbl_list, globals, imports, imports_future
+
+    $if !$PYTHON3
+        add_import_future("print_function")
 
 subcode: parsecode
     $if $l=~/^\$(\w+)\s*(.*?)\s*$/
@@ -26,7 +34,11 @@ subcode: parsecode
             $call list_functions
             return 0
         $elif $func=~/^(if|elif|while)$/
+            $call @check_if_regex
             push @$out, "$func $param:"
+            return 0
+        $elif $func=~/^foreach (.*)\s+in\s+(.*)/
+            push @$out, "for $1 in $2:"
             return 0
         $elif $func=~/^(for)$/
             $if $param =~/^(\w+)=(.*)/
@@ -110,12 +122,17 @@ subcode: parsecode
     # --------------------------------- 
     subcode: parsecode_filter
         $if $l=~/^(def|if|elif|else|while|for)\b(.*?):?\s*$/
+            # fix forgotten :
             $l="$1$2:"
-        $elif $l=~/^([\w\.]+):\s*(.*)$/
-            $l="$1($2)"
+        $elif !$PYTHON3 and $l=~/\binput\s*\(/
+            $l = $`."raw_input(".$';
+        $(if:0)
+            $elif $l=~/^([\w\.]+):\s*(.*)$/
+                $l="$1($2)"
         $elif $l=~/^(print)\s+(.*)$/
             $l="$1($2)"
         $elif $l=~/^DUMP_STUB\s+(\w+)/
+            # for regex_compile
             $global %stub
             $stub{$1}++
 
@@ -126,13 +143,15 @@ fncode: add_import_future($t)
     $call dbl_push, imports_future, $t
 
 subcode: dumpout
-    $if $page->{use_python} eq "2"
+    $call @fix_template
+    $if !$PYTHON3
         $if @imports_future
             my $t = join(", ", @imports_future)
             push @$f, "from __future__ import $t\n"
+            push @$f, "\n"
     $if @imports
         $foreach $t in @imports
-            $if $t=~/(.*)\s+(from\s+\w+)$/
+            $if $t=~/(.*)\s+(from\s+\S+)$/
                 push @$f, "$2 import $1\n"
             $else
                 push @$f, "import $t\n"
@@ -146,6 +165,22 @@ subcode: dumpout
     $if @$fn_block
         $dump->{fn_block}=$fn_block
         unshift @$out, "INCLUDE_BLOCK fn_block"
+
+    subcode: fix_template
+        my $i=0
+        $while $out->[$i]=~/^\s*$|^\s*#|^from .* import|^import /
+            $if $out->[$i]=~/^import\s+(.*)/
+                push @imports, $1
+            $elif $out->[$i]=~/^from\s+(.*)\s+import\s+(.*)/
+                $if $1 eq "__future__"
+                    push @imports_future, $2
+                $else
+                    push @imports, "$2 from $1"
+            $i++
+        $if $i>0
+            $while $i>0
+                shift @$out
+                $i--
 
 #---------------------------------------- 
 subcode: list_functions

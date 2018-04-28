@@ -1,0 +1,9 @@
+page: test
+    module: python
+
+    s = "test Hello World"
+    $if s=~/Hello\s+(\w+)/ -> world
+        $print Match! $world
+    $elif s=~/(test)/i -> test
+        $print got test (at least)
+
