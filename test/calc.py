@@ -1,6 +1,4 @@
 import re
-def main():
-    print(calc("1+2*-3"))
 
 def calc(src):
     src_len=len(src)
@@ -11,7 +9,7 @@ def calc(src):
     re3 = re.compile(r"[-+*/]")
     stack=[]
     while 1:
-        while 1: # $do
+        while 1: # $do:
             # r"\s+"
             m = re1.match(src, src_pos)
             if m:
@@ -37,7 +35,7 @@ def calc(src):
             t=src[0:src_len]+" - "+src[src_len:]
             raise Exception(t)
             break
-        while 1: # $do
+        while 1: # $do:
             if cur[1]=="num":
                 break
             if len(stack)<1 or stack[-1][1]!="num":
@@ -71,5 +69,4 @@ def calc(src):
             else:
                 return None
 
-if __name__ == "__main__":
-    main()
+print(calc("1+2*-3"))

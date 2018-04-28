@@ -1,7 +1,4 @@
 import re
-def main():
-    s="1, 2, \"\"\"3\"\"\"\n 4,5, 6\n"
-    print(csv(s))
 
 def csv_simple(src):
     row_list=[]
@@ -13,19 +10,25 @@ def csv(src):
     src_len=len(src)
     src_pos=0
     re1 = re.compile(r"[ \t]+")
-    re2 = re.compile(r"\r?\n")
-    re3 = re.compile(r'"([^"]|"")*"')
-    re4 = re.compile(r"[^,\n]*")
+    re2 = re.compile(r",[ \t]*")
+    re3 = re.compile(r"\r?\n")
+    re4 = re.compile(r'"([^"]|"")*"')
+    re5 = re.compile(r"[^,\n]*")
+    is_sol=1
     row_list=[]
     cur_row=[]
     cur_rec=""
     while src_pos<src_len:
-        # r"[ \t]+"
-        m = re1.match(src, src_pos)
+        if is_sol:
+            is_sol=0
+            # r"[ \t]+"
+            m = re1.match(src, src_pos)
+            if m:
+                src_pos=m.end()
+        # r",[ \t]*"
+        m = re2.match(src, src_pos)
         if m:
             src_pos=m.end()
-        if src_pos<src_len and src[src_pos]==',':
-            src_pos+=1
             cur_rec = cur_rec.rstrip()
             if len(cur_rec)>0 and cur_rec[0]=='"' and cur_rec[-1]=='"':
                 cur_rec=re.sub('""', '"', cur_rec[1:-1])
@@ -33,7 +36,7 @@ def csv(src):
             cur_rec=""
             continue
         # r"\r?\n"
-        m = re2.match(src, src_pos)
+        m = re3.match(src, src_pos)
         if m:
             src_pos=m.end()
             cur_rec = cur_rec.rstrip()
@@ -45,18 +48,18 @@ def csv(src):
             cur_row=[]
             continue
         # r'"([^"]|"")*"'
-        m = re3.match(src, src_pos)
-        if m:
-            src_pos=m.end()
-            cur_rec+=m.group(0)
-            continue
-        # r"[^,\n]*"
         m = re4.match(src, src_pos)
         if m:
             src_pos=m.end()
             cur_rec+=m.group(0)
             continue
-    if cur_rec or cur_row:
+        # r"[^,\n]*"
+        m = re5.match(src, src_pos)
+        if m:
+            src_pos=m.end()
+            cur_rec+=m.group(0)
+            continue
+    if not is_sol:
         cur_rec = cur_rec.rstrip()
         if len(cur_rec)>0 and cur_rec[0]=='"' and cur_rec[-1]=='"':
             cur_rec=re.sub('""', '"', cur_rec[1:-1])
@@ -65,5 +68,8 @@ def csv(src):
         row_list.append(cur_row)
     return row_list
 
+def main():
+    s="1, 2, \"\"\"3\"\"\"\n 4,5, 6\n"
+    print(csv(s))
 if __name__ == "__main__":
     main()

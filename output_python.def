@@ -45,12 +45,12 @@ subcode: parsecode
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^do$/
-            push @$out, "while 1: $(comment) \$do"
-            push @$out, "INDENT"
-            push @$out, "BLOCK"
-            push @$out, "break"
-            push @$out, "DEDENT"
-            return "NEWBLOCK-do"
+            &call return_newblock, do
+                push @src, "while 1: $(comment) \$do"
+                push @src, "INDENT"
+                push @src, "BLOCK"
+                push @src, "break"
+                push @src, "DEDENT"
         $elif $func eq "else"
             push @$out, "else:"
             return 0
@@ -74,8 +74,12 @@ subcode: parsecode
         #-- assumes global: src, src_pos, src_len
         my $n=0
         $if length($param)==1 and $param!~/\w/
-            return single_block_pre_post(["if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1"],["DEDENT"])
-
+            &call return_newblock, if
+                push @src, "if src_pos<src_len and src[src_pos]=='$param':"
+                push @src, "INDENT"
+                push @src, "src_pos+=1"
+                push @src, "BLOCK"
+                push @src, "DEDENT"
         #-- keyword --
         $if $param=~/^([^*|?+()\[\]{}'"]+)$/
             $param="r\"$param\\b\""
@@ -94,8 +98,14 @@ subcode: parsecode
         $else
             $re=$re_cache{$param}
 
-        return single_block_pre_post(["$(comment) $param", "m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
-
+        &call return_newblock, if
+            push @src, "$(comment) $param"
+            push @src, "m = $re.match(src, src_pos)"
+            push @src, "if m:"
+            push @src, "INDENT"
+            push @src, "src_pos=m.end()"
+            push @src, "BLOCK"
+            push @src, "DEDENT"
 
     # --------------------------------- 
     subcode: parsecode_filter
