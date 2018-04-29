@@ -57,12 +57,12 @@ subcode: parsecode
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^do$/
-            push @$out, "while 1: $(comment) \$do"
-            push @$out, "INDENT"
-            push @$out, "BLOCK"
-            push @$out, "break"
-            push @$out, "DEDENT"
-            return "NEWBLOCK-do"
+            &call return_newblock, do
+                push @src, "while 1: $(comment) \$do"
+                push @src, "INDENT"
+                push @src, "BLOCK"
+                push @src, "break"
+                push @src, "DEDENT"
         $elif $func eq "else"
             push @$out, "else:"
             return 0
@@ -80,6 +80,44 @@ subcode: parsecode
     $call @parsecode_filter
     push @$out, $l
     return 0
+
+    # --------------------------------- 
+    subcode: if_match
+        #-- assumes global: src, src_pos, src_len
+        my $n=0
+        $if length($param)==1 and $param!~/\w/
+            &call return_newblock, if
+                push @src, "if src_pos<src_len and src[src_pos]=='$param':"
+                push @src, "INDENT"
+                push @src, "src_pos+=1"
+                push @src, "BLOCK"
+                push @src, "DEDENT"
+        #-- keyword --
+        $if $param=~/^([^*|?+()\[\]{}'"]+)$/
+            $param="r\"$param\\b\""
+
+        $global $re_index=0, %re_cache
+        add_import("re")
+        my $re
+        $if $param!~/^r['"]/
+            $param = "r\"$param\""
+        $if !$re_cache{$param}
+            $re_index++
+            my $blk=MyDef::compileutil::get_named_block("regex_compile")
+            push @$blk, "re$re_index = re.compile($param)\n"
+            $re="re$re_index"
+            $re_cache{$param}=$re
+        $else
+            $re=$re_cache{$param}
+
+        &call return_newblock, if
+            push @src, "$(comment) $param"
+            push @src, "m = $re.match(src, src_pos)"
+            push @src, "if m:"
+            push @src, "INDENT"
+            push @src, "src_pos=m.end()"
+            push @src, "BLOCK"
+            push @src, "DEDENT"
 
     # --------------------------------- 
     subcode: parsecode_filter

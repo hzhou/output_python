@@ -1,8 +1,4 @@
 import re
-def main():
-    s = "<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Test</h1><p>Hello World!</p></body></html>"
-    page = parse_html(s)
-    debug_dom(page["dom"])
 
 def parse_html(src):
     tag_stack=[]
@@ -155,5 +151,6 @@ re9 = re.compile(r"\s*=\s*")
 re10 = re.compile(r"\"((?:[^\\\"]+|\\.)*)\"")
 re11 = re.compile(r"'((?:[^\\\']+|\\.)*)'")
 re12 = re.compile(r"[^\s'\"=<>`]+")
-if __name__ == "__main__":
-    main()
+s = "<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Test</h1><p>Hello World!</p></body></html>"
+page = parse_html(s)
+debug_dom(page["dom"])

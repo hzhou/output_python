@@ -61,7 +61,7 @@ fncode: csv(src)
             continue
 
     #-- potentially wrap last line
-    $if !is_sol
+    $if not is_sol
         $call push_rec
         row_list.append: cur_row
 

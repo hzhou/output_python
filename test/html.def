@@ -1,7 +1,7 @@
 #---- page ------------------
 include: python/parse.def
 
-page: html, basic_frame
+page: html
     module: python
 
     s = "<!DOCTYPE html><html><head><title>Test</title></head><body><h1>Test</h1><p>Hello World!</p></body></html>"
