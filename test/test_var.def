@@ -1,0 +1,19 @@
+page: test
+    module: python
+
+    $global x=1
+
+    test()
+    test_local()
+    test()
+
+fncode: test
+    $print x: $x
+
+fncode: test_local
+    # we made it impossible to have local variables overwiting globals.
+    x=2
+    $print test_local: $x
+
+subcode: _autoload
+    n=1
