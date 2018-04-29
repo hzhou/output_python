@@ -37,10 +37,7 @@ subcode: parsecode
             $call @check_if_regex
             push @$out, "$func $param:"
             return 0
-        $elif $func=~/^foreach (.*)\s+in\s+(.*)/
-            push @$out, "for $1 in $2:"
-            return 0
-        $elif $func=~/^(for)$/
+        $elif $func=~/^(for(each)?)$/
             $if $param =~/^(\w+)=(.*)/
                 my ($v, $t) =($1, $2)
                 $if $t=~/^0:([^:]+)$/
