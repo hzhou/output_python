@@ -25,7 +25,8 @@ subcode: parsecode
             # my @tlist=split /,\s*/, $param
             my @tlist = MyDef::utils::proper_split($param)
             $foreach $v in @tlist
-                $call dbl_push, globals, $v
+                $if $v=~/^(\w+)/
+                    $call dbl_push_key, globals, $1, $v
             return 0
         $elif $func eq "import"
             add_import($param)
@@ -76,7 +77,7 @@ subcode: parsecode
     $elif $l=~/^NOOP POST_MAIN/
         $call autolist_functions
         return 0
-
+    # ---------------------
     $call @parsecode_filter
     push @$out, $l
     return 0
@@ -119,23 +120,26 @@ subcode: parsecode
             push @src, "BLOCK"
             push @src, "DEDENT"
 
-    # --------------------------------- 
-    subcode: parsecode_filter
-        $if $l=~/^(def|if|elif|else|while|for)\b(.*?):?\s*$/
-            # fix forgotten :
-            $l="$1$2:"
-        $elif !$PYTHON3 and $l=~/\binput\s*\(/
-            $l = $`."raw_input(".$';
-        $(if:0)
-            $elif $l=~/^([\w\.]+):\s*(.*)$/
-                $l="$1($2)"
-        $elif $l=~/^(print)\s+(.*)$/
-            $l="$1($2)"
-        $elif $l=~/^DUMP_STUB\s+(\w+)/
-            # for regex_compile
-            $global %stub
-            $stub{$1}++
+#--------------------------------- 
+subcode: parsecode_filter
+    $if $l=~/^(def|if|elif|else|while|for)\b(.*?):?\s*$/
+        # fix forgotten :
+        $l="$1$2:"
+    $elif !$PYTHON3 and $l=~/\binput\s*\(/
+        $l = $`."raw_input(".$';
+    $elif $l=~/^(print)\s+(.*)$/
+        $l="$1($2)"
+    $elif $l=~/^DUMP_STUB\s+(\w+)/
+        # for regex_compile
+        $global %stub
+        $stub{$1}++
+    $elif defined $check_def_global and $l=~/^(\w+)\s*=/
+        $if $globals{$1} and !$check_def_global->{$1}
+            push @$out, "global $1"
+            $check_def_global->{$1}=1
 
+
+#---------------------------------------- 
 fncode: add_import($t)
     $call dbl_push, imports, $t
 
@@ -212,7 +216,12 @@ fncode: parse_function($name, $code)
     push @$out, "INDENT"
     $call @check_sub_functions
     $code->{scope}="list_sub"
+
+    $global $check_def_global
+    $check_def_global={}
     MyDef::compileutil::list_sub($code)
+    undef $check_def_global
+
     push @$out, "DEDENT"
     push @$out, "NEWLINE"
 
