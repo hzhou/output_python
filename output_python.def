@@ -45,8 +45,11 @@ subcode: parsecode
                 $else
                     $t=~s/:/,/g
                 push @$out, "for $v in range($t):"
+            $elif $param =~/^(.*) in (.*)/ -> $v, $t
+                $call @check_for_zip
+                push @$out, "for $param:"
             $else
-                push @$out, "$func $param:"
+                push @$out, "for $param:"
             return 0
         $elif $func=~/^def$/
             $if $param=~/^\w+$/
@@ -224,3 +227,11 @@ fncode: parse_function($name, $code)
         $if $cnt>0
             push @$out, "NEWLINE"
 
+#---------------------------
+subcode: check_for_zip
+    $if $v=~/,/ and $t!~/^zip\(/
+        my @v=MyDef::utils::proper_split($v)
+        my @t=MyDef::utils::proper_split($t)
+        $if $#v>0 and $#v==$#t
+            push @$out, "for $v in zip($t):"
+            return 0
