@@ -1,0 +1,23 @@
+page: test
+    module: python
+
+    $(set:text=$i)
+    $call test_for, i=0:10
+    $call test_for, i in range(10)
+    $call test_foreach, i in range(10)
+   
+    $(set:text=$i:$x)
+    t1 = [1,2,3]
+    t2 = ['x','y','z']
+    $call test_for, i, x in t1, t2
+    $call test_for, i, x in range(3), ['x','y','z']
+
+subcode: test_for(@cond)
+    $print ** for $(cond) **
+    $for $(cond)
+        $print $(text)
+
+subcode: test_foreach(@cond)
+    $print ** foreach $(cond) **
+    $foreach $(cond)
+        $print $(text)
