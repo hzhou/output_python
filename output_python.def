@@ -50,7 +50,8 @@ subcode: parsecode
                 $call @check_for_zip
                 push @$out, "for $param:"
             $else
-                push @$out, "for $param:"
+                # $for N
+                push @$out, "for _i in range($param):"
             return 0
         $elif $func=~/^def$/
             $if $param=~/^\w+$/
@@ -246,7 +247,7 @@ subcode: check_for_zip
                 push @$out, "for $v in zip($t):"
                 return 0
             $elif $#v==$#t+1 and $v[0]=~/^_?[ijk]/
-                $if $#t=0
+                $if $#t==0
                     push @$out, "for $v in enumerate($t):"
                     return 0
                 $else

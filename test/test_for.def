@@ -15,6 +15,20 @@ page: test
     $call test_for, i, x in t2
     $call test_for, i, n, x in t1, t2
 
+    #---------------------------
+    $print ** test foreach ** 
+    $for i, x in t1, t2
+        $print $i: $x
+        i+=1
+
+    $for i, x in t1, t2
+        $print $i: $x
+    #--------------------------
+    $for 10-len(t1)
+        t1.append(0)
+    $for i in t1
+        $print i=$i
+
 subcode: test_for(@cond)
     $print ** for $(cond) **
     $for $(cond)
