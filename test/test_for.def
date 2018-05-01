@@ -12,6 +12,9 @@ page: test
     $call test_for, i, x in t1, t2
     $call test_for, i, x in range(3), ['x','y','z']
 
+    $call test_for, i, x in t2
+    $call test_for, i, n, x in t1, t2
+
 subcode: test_for(@cond)
     $print ** for $(cond) **
     $for $(cond)

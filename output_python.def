@@ -241,6 +241,14 @@ subcode: check_for_zip
     $if $v=~/,/ and $t!~/^zip\(/
         my @v=MyDef::utils::proper_split($v)
         my @t=MyDef::utils::proper_split($t)
-        $if $#v>0 and $#v==$#t
-            push @$out, "for $v in zip($t):"
-            return 0
+        $if $#v>0 
+            $if $#v==$#t
+                push @$out, "for $v in zip($t):"
+                return 0
+            $elif $#v==$#t+1 and $v[0]=~/^_?[ijk]/
+                $if $#t=0
+                    push @$out, "for $v in enumerate($t):"
+                    return 0
+                $else
+                    push @$out, "for $v in zip(range(len($t[0])), $t):"
+                    return 0
