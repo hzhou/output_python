@@ -246,7 +246,7 @@ subcode: check_for_zip
             $if $#v==$#t
                 push @$out, "for $v in zip($t):"
                 return 0
-            $elif $#v==$#t+1 and $v[0]=~/^_?[ijk]/
+            $elif $#v==$#t+1 and $v[0]=~/^_?[ijklmn]/
                 $if $#t==0
                     push @$out, "for $v in enumerate($t):"
                     return 0
