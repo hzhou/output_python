@@ -2,19 +2,24 @@ page: test
     module: python
 
     $import numpy as np
-    A=np.eye(5,5)
-    $print $A
+    A=np.eye(5)
+    $print eye(5): $A
 
     A=np.empty((5,5))
     A[2]=[1,2,3,4,5]
-    $print $A
+    $print empty set row 2: $A
 
     A=np.array([2,1,1,4,1,0,-2,2,1]).reshape((3,3))
-    $print $A
+    $print reshap: $A
 
     $import solve from numpy.linalg
     b = np.array([1,-2,7])
     x = solve(A, b)
-    $print x=$x
+    $print solve: x=$x
 
-
+    # transpose returns a *view*
+    A=np.array(range(25)).reshape((5,5))
+    $print A: $A
+    $print A': ${np.transpose(A)}
+    B = A + np.transpose(A)
+    $print A+A': $B
