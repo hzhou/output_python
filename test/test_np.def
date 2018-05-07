@@ -1,0 +1,20 @@
+page: test
+    module: python
+
+    $import numpy as np
+    A=np.eye(5,5)
+    $print $A
+
+    A=np.empty((5,5))
+    A[2]=[1,2,3,4,5]
+    $print $A
+
+    A=np.array([2,1,1,4,1,0,-2,2,1]).reshape((3,3))
+    $print $A
+
+    $import solve from numpy.linalg
+    b = np.array([1,-2,7])
+    x = solve(A, b)
+    $print x=$x
+
+
