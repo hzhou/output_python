@@ -138,6 +138,11 @@ subcode: parsecode_filter
         $if $globals{$1} and !$check_def_global->{$1}
             push @$out, "global $1"
             $check_def_global->{$1}=1
+    $elif $l=~/^(.+)(\+\+|\-\-)\s*$/
+        $if $2 eq '++'
+            $l= "$1+=1"
+        $else
+            $l= "$1-=1"
 
 
 #---------------------------------------- 
