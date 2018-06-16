@@ -2,6 +2,7 @@
 include: python/_config.def?
 macros:
     comment: #
+    ternary: $2 if $1 else $3
 
 subcode: basic_frame
     # I don't really see point of this, albeit works.
@@ -21,6 +22,13 @@ subcode: open_w(name)
     with open($(name), "w") as Out:
         $(set:print_to=Out)
         BLOCK
+
+#---------------------------------------- 
+subcode: dict_inc(V, key)
+    $if not $(key) in $(V)
+        $(V)[$(key)] = 1
+    $else
+        $(V)[$(key)] +=1
 
 #---------------------------------------- 
 include: ext.def

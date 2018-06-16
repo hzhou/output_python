@@ -48,7 +48,8 @@ subcode: check_if_regex
 subcode: if_match
     my $n=0
     $if length($param)==1 and $param!~/\w/
-        return single_block_pre_post(["if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1"],["DEDENT"])
+        &call return_newblock, if
+            push @src, "if src_pos<src_len and src[src_pos]=='$param':", "INDENT", "src_pos+=1","BLOCK","DEDENT"
 
     #-- keyword --
     $if $param=~/^([^*|?+()\[\]{}'"]+)$/
@@ -68,6 +69,7 @@ subcode: if_match
     $else
         $re=$re_cache{$param}
 
-    return single_block_pre_post(["$(comment) $param", "m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()"],["DEDENT"])
+    &call return_newblock, if
+        push @src, "$(comment) $param", "m = $re.match(src, src_pos)","if m:", "INDENT", "src_pos=m.end()","BLOCK","DEDENT"
 
 
