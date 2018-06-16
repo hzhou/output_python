@@ -141,9 +141,7 @@ subcode: dumpout
         push @$f, "\n"
     $if !$stub{"regex_compile"}
         unshift @$out, "DUMP_STUB regex_compile"
-    $if @$fn_block
-        $dump->{fn_block}=$fn_block
-        unshift @$out, "INCLUDE_BLOCK fn_block"
+    $call @dump_fn_block
 
     subcode: fix_template
         my $i=0
@@ -166,7 +164,7 @@ fncode: check_fcall($l)
     $while $l=~/\b(\w+)\(/g
         my $code = $MyDef::def->{codes}->{$1}
         $if $code
-            parse_function($name, $code)
+            parse_function($1, $code)
             $code->{_listed}=1
 
 subcode: list_functions
@@ -176,18 +174,26 @@ subcode: list_functions
         parse_function($name, $code)
         $code->{_listed}=1
 
+# -----------------------------------        
+subcode: _autoload
+    $global $fn_block=[]
+
 subcode: autolist_functions
     my $mainfunc = $MyDef::def->{codes}->{main}
     $if $mainfunc
         #- so main function gets listed first
         $mainfunc->{index}=-1
 
-    $global $fn_block=[]
     &call replace_output, $fn_block
         &call each_subcode, fn
             $if !$code->{_listed}
                 parse_function($name, $code)
 
+subcode: dump_fn_block
+    $if @$fn_block
+        $dump->{fn_block}=$fn_block
+        unshift @$out, "INCLUDE_BLOCK fn_block"
+# -----------------------------------        
 fncode: parse_function($name, $code)
     my $pline
     my $params=$code->{params}
