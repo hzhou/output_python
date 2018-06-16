@@ -78,10 +78,11 @@ subcode: parsecode
             return 0
 
     $elif $l=~/^NOOP POST_MAIN/
-        $call autolist_functions
+        # $call autolist_functions
         return 0
     # ---------------------
     $call @parsecode_filter
+    check_fcall($l)
     push @$out, $l
     return 0
 
@@ -161,6 +162,13 @@ subcode: dumpout
                 $i--
 
 #---------------------------------------- 
+fncode: check_fcall($l)
+    $while $l=~/\b(\w+)\(/g
+        my $code = $MyDef::def->{codes}->{$1}
+        $if $code
+            parse_function($name, $code)
+            $code->{_listed}=1
+
 subcode: list_functions
     my @tlist=split /,\s*/, $param
     $foreach $name in @tlist
