@@ -10,17 +10,40 @@ subcode: parsecode_print
         push @$out, "print('')"
     $else
         my ($n, $fmt)=fmt_string($param, 1)
+        $if $n>0
+            $(if:1)
+                $call convert_fmt_string
+            $(else)
+                $call convert_placeholder_format
+        $call get_print_to
+
+        $if $print_to=~/^\@(\w+)/
+            $call push_to_array, $1
+        $else
+            $call @hack_newline
+            $if $print_to
+                $call print_to
+            $else
+                $call print_1
+
+    subcode: convert_fmt_string
+        $if $fmt=~/^(".*?"), (.*)/
+            $fmt = "$1 % ($2)"
+
+    subcode: convert_placeholder_format
+        $if $fmt=~/^(".*?"), (.*)/ -> $s, $a
+            $s=~s/\%s/{}/g
+            $fmt = "$s.format($a)"
+
+    subcode: push_to_array(A)
+        push @$out, "$(A).append($fmt)"
+
+    subcode: hack_newline
         my $add_newline = 1
         $if $fmt=~/^"(.*)\\n"(.*)/
             $fmt = "\"$1\"$2"
         $else
             $add_newline = 0
-
-        $call get_print_to
-        $if $print_to
-            $call print_to
-        $else
-            $call print_1
 
     subcode: print_1
         $if $add_newline

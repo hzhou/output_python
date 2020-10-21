@@ -1,0 +1,18 @@
+page: test
+    module: python
+
+    $print Hello World!
+
+    s = get_name()
+    $print s = $s
+
+subcode: _autoload
+    $list get_name
+
+fncode: get_name
+    return "World!!!"
+
+/* expect output:
+Hello World!
+s = World!!!
+*/

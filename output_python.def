@@ -2,6 +2,8 @@ include: output.def
 include: macros/print.def
 include: macros/re.def
 
+include: macros_output/perl_like.def
+
 page: output_python, output_main
     output_dir: lib/MyDef
     ext: py
@@ -9,9 +11,15 @@ page: output_python, output_main
     comment: #
 
 subcode: init_page
-    $global $PYTHON3
+    $global $PYTHON3=1
     $if $MyDef::def->{macros}->{PYTHON3}
         $PYTHON3=1
+    $if $MyDef::def->{macros}->{PYTHON2}
+        undef $PYTHON3
+
+    $if 0 # if it is a module
+        $page->{autolist} = 1
+    $call survey_functions
 
     $map dbl_list, globals, imports, imports_future
 
@@ -32,9 +40,7 @@ subcode: parsecode
         $elif $func eq "import"
             add_import($param)
             return 0
-        $elif $func eq "list"
-            $call list_functions
-            return 0
+        $call @parse_func_list
         $elif $func=~/^(if|elif|while)$/
             $call @check_if_regex
             $call @check_while_step
@@ -78,7 +84,7 @@ subcode: parsecode
             return 0
 
     $elif $l=~/^NOOP POST_MAIN/
-        # $call autolist_functions
+        $call list_functions
         return 0
     # ---------------------
     $call @parsecode_filter
@@ -139,9 +145,16 @@ subcode: dumpout
         $foreach $t in @globals
             push @$f, "$t\n"
         push @$f, "\n"
+
+    my @tmp_out
     $if !$stub{"regex_compile"}
-        unshift @$out, "DUMP_STUB regex_compile"
+        push @tmp_out, "DUMP_STUB regex_compile"
     $call @dump_fn_block
+    push @tmp_out, "DUMP_STUB global_init"
+    
+    unshift @$out, @tmp_out
+
+    push @$out, "DUMP_STUB global_exit"
 
     subcode: fix_template
         my $i=0
@@ -162,37 +175,8 @@ subcode: dumpout
 #---------------------------------------- 
 fncode: check_fcall($l)
     $while $l=~/\b(\w+)\(/g
-        my $code = $MyDef::def->{codes}->{$1}
-        $if $code
-            parse_function($1, $code)
-            $code->{_listed}=1
+        $call add_function, $1, nowarn
 
-subcode: list_functions
-    my @tlist=split /,\s*/, $param
-    $foreach $name in @tlist
-        my $code = $MyDef::def->{codes}->{$name}
-        parse_function($name, $code)
-        $code->{_listed}=1
-
-# -----------------------------------        
-subcode: _autoload
-    $global $fn_block=[]
-
-subcode: autolist_functions
-    my $mainfunc = $MyDef::def->{codes}->{main}
-    $if $mainfunc
-        #- so main function gets listed first
-        $mainfunc->{index}=-1
-
-    &call replace_output, $fn_block
-        &call each_subcode, fn
-            $if !$code->{_listed}
-                parse_function($name, $code)
-
-subcode: dump_fn_block
-    $if @$fn_block
-        $dump->{fn_block}=$fn_block
-        unshift @$out, "INCLUDE_BLOCK fn_block"
 # -----------------------------------        
 fncode: parse_function($name, $code)
     my $pline

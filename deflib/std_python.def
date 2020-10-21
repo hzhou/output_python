@@ -1,4 +1,6 @@
 #-- define macro PYTHON3 for python 3 in deflib/python/_config.def
+#-- NOTE: python3 is the default now, define PYTHON2 otherwise
+
 include: python/_config.def?
 macros:
     comment: #
@@ -7,10 +9,12 @@ macros:
 subcode: basic_frame
     # I don't really see point of this, albeit works.
     $def main
-        $call @main2
+        $call @main
 
-    $if __name__ == "__main__"
-        main()
+    $(block:global_exit)
+        $: \x23 ---------------------------------------------------------
+        $if __name__ == "__main__"
+            main()
 
 #---------------------------------------- 
 subcode: open_r(name)
