@@ -10,6 +10,7 @@ subcode: _autoload
     $list get_name
 
 fncode: get_name
+    $global g_name = "Hello"
     return "World!!!"
 
 /* expect output:

@@ -1,0 +1,499 @@
+page: perl_to_python
+    output_dir: script
+    type:
+
+    my ($in_file, $out_file) = @ARGV
+
+    my @lines
+    load_lines($in_file, \@lines)
+
+    &call open_W, $out_file
+        $foreach $l in @lines
+            $print $l-
+
+fncode: load_lines($in_file, $out)
+    $call get_file_lines, $in_file
+    my $stage
+    $foreach @lines
+        $if /^include:\s*(.*)/
+            load_lines(find_file($1), $out)
+            next
+        $call @filters
+        push @$out, $_
+
+fncode: find_file($f)
+    return $f
+
+subcode: filters
+    $if /^\s*$/
+        # skip blank
+    $elif /^\s*#.*$/
+        $if /^(\s*)#\s*skip/
+            push @$out, $1."pass\n"
+            next
+        # skip comments
+    $elif /^\/\*(\s|$)/
+        $stage = "comment"
+        next
+    $elif $stage eq "comment"
+        $if /^\*\//
+            undef $stage
+        next
+
+    $elif /^filter: perl_to_python/
+        push @$out, "subcode: _autoload\n"
+        push @$out, "    \$call class_RE\n"
+        push @$out, "\n"
+        next
+    $elif /^\s*module: perl/
+        s/perl/python/
+    $elif /^\s*fncode:/
+        s/\$//g
+    $elif /^\s*(\w+):/
+        # skip likely mydef directive
+    $elif /^\s*\$\(/
+        # skip mydef directive
+    $elif /^(\s*)return\s*(.*)/ -> $sp, $t
+        push @$out, $sp."return ".translate_expr($t)."\n"
+        next
+    $elif /^(\s*)push\s+\@(.*?),\s+(.*)/ -> $sp, $array, $t
+        $if $array =~ /^\{(.*)\}/
+            $array = $1
+        $array = translate_expr($array)
+        $t = translate_expr($t)
+        $_ = $sp . "$array.append($t)" . "\n"
+    $elif /^(\s*)(\S+)\s*=~\s*s\/(.*)\/(.*)\// -> $sp, $str, $pat, $repl
+        my $s = translate_expr($str)
+        $_ = $sp . "re.sub(r'$pat', '$repl', $s)\n"
+    $elif /^(\s*[\&\$]call) (\S.+)/ -> $a, $b
+        $b=~s/\$//g
+        $_ = "$a $b\n"
+        # skip for now
+    $elif /^(\s*)my\s+(.*)/ -> $sp, $t
+        $_ = $sp . translate_my($t) . "\n"
+    $elif /^(\s*)print\s+(.*)/ -> $sp, $t
+        $if $t=~/^(\w+)\s+(.+)/ -> $out, $t
+            $t = translate_expr($t)
+            $_ = $sp . "print($t, end='', file=$out)". "\n"
+        $else
+            $_ = $sp . "print($t)" . "\n"
+    $elif /^(\s*)\$(\w+)\s+(.*)/ -> $sp, $func, $t
+        my $lead = "$sp\$$func "
+        $if $func =~ /^(print|die|warn|else|while)$/
+            $_ = "$lead$t\n"
+        $elif $func =~ /^(dump)$/
+            $_ = $lead . translate_expr($t). "\n"
+        $elif $func eq "for"
+            $_ = $lead. translate_for_param($t) . "\n"
+        $elif $func eq "foreach"
+            $if $t=~/^\%(.*)/
+                $t = "k, v in ".translate_expr(strip_brace($1)).".items()"
+            $_ = "$sp\$for ". translate_for_param($t) . "\n"
+        $elif $func eq "global"
+            $_ = $lead. translate_global($t) . "\n"
+
+        $elif $func =~/^(if|elif)/
+            $if $t=~/^!\s*(.*)/
+                $lead .= "not "
+                $t = $1
+            $if $t=~/^exists\s+(.*?)(->)?\{(.+)\}/
+                $(if:0)
+                    # python2
+                    push @$out, $lead. translate_expr($1). ".has_key('$3')\n"
+                $(else)
+                    push @$out, "$lead '$3' in ". translate_expr($1). "\n"
+                next
+            $elif $t=~/(.*\/.*\/\w*)\s*->(.*)/g -> $re, $cap
+                $cap =~ s/\*//g
+                $re = translate_expr($re)
+                $cap = translate_expr($cap, "left")
+                push @$out, "$lead $re -> $cap\n"
+                next
+            $_ = $lead . translate_expr($t) . "\n"
+        $else
+            $_ = $sp . translate_Expr("$func $t") . "\n"
+
+    $elif /^(\s*)(.+)/ -> $sp, $t
+        $if $direct_translate{$t}
+            $_ = $sp . $direct_translate{$t} . "\n"
+        $else
+            $_ = $sp . translate_Expr($t) . "\n"
+
+subcode: _autoload
+    $global %direct_translate
+    %direct_translate=(
+        last=>"break",
+        next=>"continue",
+    );
+#---------------------------------------- 
+fncode: translate_for_param($t)
+    $if $t =~/(.*?)\s+in\s+(.*)/ -> $v, $array
+        $v=~s/\$//g
+        $if $array =~ /^keys\s*\%(.*)/
+            $array = strip_brace($1)
+        $array = translate_expr($array, "left") # not a scalar
+        $print translate_for_param [$v][$array]
+        return "$v in $array"
+
+fncode: translate_global($t)
+    my @tlist
+    $foreach $a in split /,\s*/, $t
+        $if $a=~/^\@(\w+)/
+            push @tlist, "$1 = []"
+        $elif $a=~/^\%(\w+)/
+            push @tlist, "$1 = {}"
+        $elif $a=~/^\$(\w+)/
+            push @tlist, "$1 = ''"
+    return join(', ', @tlist)
+
+fncode: translate_my($t)
+    # $print translate_my: [$t]
+    my (@alist, @blist)
+    $if $t=~/=/
+        return translate_Expr($t)
+    $elif $t =~/^\((.*)\)$/ -> $a
+        @alist = split /,\s*/, $a
+    $else
+        @alist = ($t)
+
+    $foreach $a in @alist
+        $if $a=~/^\@(\w+)/
+            push @blist, "[]"
+        $elif $a=~/^\%(\w+)/
+            push @blist, "{}"
+        $elif $a=~/^\$(\w+)/
+            push @blist, "''"
+        substr($a,0,1)=''
+    return join(', ', @alist) . " = " . join(', ', @blist)
+
+#---------------------------------------- 
+fncode: strip_brace($t)
+    $if $t=~/^\{(.*)\}/
+        return $1
+    $else
+        return $t
+#---------------------------------------- 
+macros:
+    debug: 1
+
+fncode: translate_Expr($l)
+    $if $l=~/^[%@](.*?)\s*=\s*[%@](.*)/ -> $a, $b
+        $a = strip_brace($a)
+        $b = strip_brace($b)
+        # push @$out, "$sp\$import copy\n"
+        my $t1 = translate_expr($a, "left")
+        my $t2 = translate_expr($b)
+        return "$t1 = copy.deepcopy($t2)"
+    $elif $l=~/^([^'"]+?)\s*([\+\-\*\.]?=)\s*(.+)/ -> $left, $op, $right
+        my $t1 = translate_expr($left, "left")
+        my $t2 = translate_expr($right)
+        $if $op eq ".="
+            $op = "+="
+        $if $t2=~/^\(('.*': .*)\)$/  # a dictionary
+            $t2="{$1}"
+        return "$t1 $op $t2"
+    $else
+        return translate_expr($l)
+
+fncode: translate_expr($l, $context)
+    $(if:debug)
+        $print translate_expr [$l] - $context
+    my ($assign, $left, $right)
+    $call @check_expression_init
+    my (@stack, @types)
+    $while 1
+        $call parse
+        # $print "  token: $token, type: $type"
+        $call push
+    $call join_stack, $right
+
+    $if $assign
+        $(if:debug)
+            $print assign: right=[$right] ...
+        $if $right=~/^\(.*\)$/
+            $right=~s/^\(/{/
+            $right=~s/\)$/}/
+        $right = "$left $assign $right"
+
+    return $right
+
+    # -------------------------------- 
+    subcode: join_stack(t)
+        $(t) = join("", @stack)
+
+    subcode: exp_push(exp, type)
+        push @stack, $(exp)
+        push @types, $(type)
+
+    subcode: exp_pop(assign)
+        $(if:assign=undef)
+            pop @stack
+            pop @types
+        $(else)
+            my $(assign)=pop @stack
+            pop @types
+
+    macros:
+        type: 
+        type1: @types>0 && $types[-1]
+        type2: @types>1 && $types[-2]
+        atom1: @stack>0 && $stack[-1]
+        atom2: @stack>1 && $stack[-2]
+    # -------------------------------- 
+    subcode: parse
+        my ($token, $type)
+        $if $l=~/\G$/gc
+            last
+        #----  atom ------
+        $elif $l=~/\G(L?"([^"\\]|\\.)*")/gc
+            $token=$1
+            $type="atom-string"
+        $elif $l=~/\G(L?'([^'\\]|\\.)*')/gc
+            $token=$1
+            $type="atom-string"
+        $elif $l=~/\G(\/([^\\]|\\.)*\/\w*)/gc
+            $token=$1
+            $type="atom-re"
+        $elif $l=~/\G(\d[0-9\.]*)/gc
+            $token=$1
+            $type="atom-number"
+        $elif $l=~/\G(\$\(\w+\))/gc
+            $token=$1
+            $type="atom-macro"
+        $elif $l=~/\G(\$\d+)/gc
+            $token = $1
+            $type="atom-macro"
+        $elif $l=~/\G(\\?[\$\@\%]+)(\w+)/gc -> $sigil, $id
+            $if $id eq "_"
+                $token='$'."(re_str)"
+            $elif $sigil=~/^@/ and $context ne "left"
+                # manage list cotext in higher layer
+                $token = "len($id)"
+            $else
+                $token=$id
+            $type="atom-var"
+        $elif $l=~/\G([\$\@\%])\{/gc -> $sigil
+            # ${...} @{...} %{...}
+            $if $sigil eq '@' and $context ne "left"
+                $call exp_push, '{', "arraylen-strip"
+            $else
+                $call exp_push, '{', "bracket-strip"
+        $elif $l=~/\Gqw\((.*?)\)/gc
+            my $t = $1
+            $t =~ s/\s+/', '/g
+            $token = "['$t']"
+            $type="atom-qw-list"
+        $elif $l=~/\G(and|or)\b/gc
+            $token=$1
+            $type="operator"
+        $elif $l=~/\G(eq|lt|le|gt|ge)\b/gc
+            $global %str_cmp_ops=(eq=>'==', lt=>'<', le=>'<=', gt=>'>', ge=>'>=')
+            $token=$str_cmp_ops{$1}
+            $type="operator"
+        $elif $l=~/\G(\w+)/gc
+            # perl {bare_word}
+            $token=$1
+            $type="atom-word"
+            $if $token eq "x"
+                $if $types[-1] eq "atom-string"
+                    $token = "*"
+                    $type="operator"
+
+        #----  bracket ------
+        $elif $l=~/\G([\(\[\{])/gc
+            $call exp_push, $1, $1
+            next
+        $elif $l=~/\G([\)\]\}])/gc
+            $call check_exp_bracket
+        #---- skip ----
+        $elif $l=~/\G(\s+)/gc
+            # skip
+            next
+        #---- operator ----
+        $elif $l=~/\G([!=]~)/gc
+            $token = $1
+            $type="operator"
+        $elif $l=~/\G([=+\-\*\/%\^\&\|><\?,\.!:]+)/gc
+            $token=$1
+            $type="operator"
+            $if $token eq ".="
+                $token = "+="
+            $elif $token eq "=>"
+                $token = ":"
+                $if $types[-1] eq "atom-word"
+                    $stack[-1] = "'$stack[-1]'"
+                    $types[-1] = "atom-string"
+        $else
+            last
+
+    subcode: push
+        check_exp_precedence:
+        $if !@stack
+            $call exp_push, $token, $type
+        $elif $type=~/^op/
+            $call is_operator
+        $elif $type=~/^atom/
+            $call is_atom
+        # ----------------------
+        subcode: is_operator
+            $if $token eq "++" or $token eq "--"
+                #---- postfix -----------------
+                $call exp_pop, $exp
+                $call exp_push, "$exp$token", "atom-postfix"
+            $elif $token eq ":"
+                #---- label -----------------
+                $call exp_pop, $exp
+                $call exp_push, "$exp$token ", "atom-label"
+            $elif $token=~/^(.*)=$/ and $1!~/^[!><=]$/
+                $call is_assignment
+            $else
+                #---- other op ----------------
+                $call exp_push, $token, $type
+            # ---------------
+            subcode: is_assignment
+                $if $left
+                    die "only simple chained assignment is supported\n"
+
+                $if $token eq '=' and @stack==1 and $types[0] eq "atom-("
+                    $left=substr($stack[0], 1, -1)
+                $else
+                    $call join_stack, $left
+
+                @stack=()
+                @types=()
+                $assign=$token
+
+        # -----------------
+        subcode: is_atom
+            $if $(type1) =~/^op/
+                $if $(type2) !~/^atom/ 
+                    #---- unary -------------
+                    $call exp_pop, $op
+                    $token=$op.$token
+                    $type="atom-unary"
+                    goto check_exp_precedence
+                $else
+                    #---- binary -------------
+                    $(set:op=$stack[-1])
+                    $if $(op) =~ /^[,:]$/
+                        # space after ,
+                        $(op).=" "
+                    $elif $(op) =~ /^(\.)$/
+                        $if $type eq "atom-string"
+                            # must be string concatenation
+                            $(op) = " + "
+                        # no space
+                    $elif $(atom2)=~/^[\(\[\{]$/
+                        # no space
+                    $elif $(op)=~/^\S+$/
+                        # space on both side of bin_op
+                        $(op)=" $(op) "
+                    $call exp_push, $token, $type
+            $elif $(type1) =~/^atom/
+                # case by case
+                $stack[-1].="$token"
+            $else
+                #---- open bracket ---------
+                $call exp_push, $token, $type
+
+    # -------------------------
+    subcode: check_exp_bracket
+        my $close=$1
+        my $open
+        $if $close eq ')'
+            $open='('
+        $if $close eq ']'
+            $open='['
+        $if $close eq '}'
+            $open='{'
+
+        &call find_open_bracket
+            $if $(atom1) eq "->"
+                $call exp_pop, $t
+                $print open = [$open] exp = [$exp] $stack[-1]...
+
+            $if $open eq "{" and $(type1)=~/^atom/
+                $call exp_pop, $primary
+                $call check_exp_dict
+            $elif $open eq "(" and $(type1) =~/^atom/ and $stack[-1]=~/(\w+)$/
+                $call exp_pop, $primary
+                $call check_exp_fcall
+                $if !$processed
+                    $token=$primary.$open.$exp.$close
+                    $type="atom-exp"
+            $elif $bracket_type =~/-strip/
+                $if $bracket_type eq "arraylen-strip"
+                    $token = "len($exp)"
+                    $type = "atom-exp"
+                $else
+                    $token = $exp
+                    $type = "atom-exp"
+            $else
+                $token=$open.$exp.$close
+                $type="atom-$open"
+
+        # ------------------------
+        subcode: find_open_bracket
+            my $n=@stack
+            my ($i_open, $bracket_type)
+            $for $i=$n:0
+                $if $stack[$i] eq $open
+                    $i_open=$i
+                    last
+            $if defined $i_open and $stack[$i_open] eq $open
+                $bracket_type = $types[$i_open]
+                my $exp
+                $if $open eq "{" && $i_open == $n-2 && $types[-1] eq "atom-word"
+                    $exp = "'$stack[-1]'"
+                    splice(@stack, $i_open)
+                    splice(@types, $i_open)
+                $else
+                    $exp=join("", splice(@stack, $i_open+1))
+                    pop @stack
+                    splice(@types, $i_open)
+                BLOCK
+            $else
+                $call error_unbalanced
+        # ---------------------
+        subcode: check_exp_fcall
+            my $processed
+            $global %fcall_map=(uc=>"upper", lc=>"lower", length=>"len")
+            $if $primary eq "join" and $exp=~/(['"].*['"]),\s*(.+)/
+                $token = "$1.join($2)"
+                $token=~s/\(len\((.*)\)\)$/($1)/  # we want array here
+                $type = "atom-string"
+                $processed = 1
+            $elif $primary =~ /^(uc|lc)$/
+                my $fn = $fcall_map{$1}
+                $token = "$exp.$fn()"
+                $type = "atom-string"
+                $processed = 1
+            $elif $primary =~ /^(length)$/
+                $primary = $fcall_map{$1}
+
+        subcode: check_exp_dict
+            $(if:1)
+                $call dict_direct
+            $(else)
+                $if $context eq "left"
+                    $call dict_direct
+                $else
+                    $call dict_get
+            subcode: dict_direct
+                $token = $primary."[$exp]"
+                $type = "atom-fcall"
+            subcode: dict_get
+                $global %dict_type
+                $if $dict_type{$primary} eq "ref"
+                    $token = "$primary.get($exp)"
+                $elif $dict_type{$primary} eq "num"
+                    $token = "$primary.get($exp, 0)"
+                $else
+                    $token = "$primary.get($exp, '')"
+                $type = "atom-fcall"
+
+        subcode: error_unbalanced
+            warn "Error checking expression $l, unbalanced brackets\n"
+            print join(" -- ", @stack), "\n"
+            $token=join("", @stack)
+            $type="atom-broken"

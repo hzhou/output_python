@@ -37,6 +37,9 @@ subcode: parsecode
                 $if $v=~/^(\w+)/
                     $call dbl_push_key, globals, $1, $v
             return 0
+        $elif $func eq "my"
+            $foreach $v in MyDef::utils::proper_split($param)
+                push @$out, $v
         $elif $func eq "import"
             add_import($param)
             return 0
@@ -44,6 +47,7 @@ subcode: parsecode
         $elif $func=~/^(if|elif|while)$/
             $call @check_if_regex
             $call @check_while_step
+            $param=~s/^!\s*/not /
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^(for(each)?)$/
@@ -57,9 +61,11 @@ subcode: parsecode
             $elif $param =~/^(.*) in (.*)/ -> $v, $t
                 $call @check_for_zip
                 push @$out, "for $param:"
-            $else
+            $elif $param =~/^(\S+)$/
                 # $for N
-                push @$out, "for _i in range($param):"
+                push @$out, "for _i in range($1):"
+            $else
+                $call warn, "Unrecognized: [\$$func $param]...\n"
             return 0
         $elif $func=~/^def$/
             $if $param=~/^\w+$/
@@ -76,7 +82,14 @@ subcode: parsecode
         $elif $func eq "else"
             push @$out, "else:"
             return 0
-        $elif $func eq "print"
+        $elif $func eq "dump"
+            my $fmt
+            $foreach $t in split /,\s*/, $param
+                $fmt.="$t = %s, "
+            $fmt=~s/, $//
+            push @$out, "print(\"$fmt\" % ($param))"
+            return 0
+        $elif $func =~ /^(print|die|warn)$/
             $call parsecode_print
             return 0
         $elif $func eq "if_match"
@@ -151,6 +164,7 @@ subcode: dumpout
         push @tmp_out, "DUMP_STUB regex_compile"
     $call @dump_fn_block
     push @tmp_out, "DUMP_STUB global_init"
+    push @tmp_out, "NEWLINE?"
     
     unshift @$out, @tmp_out
 
@@ -174,8 +188,11 @@ subcode: dumpout
 
 #---------------------------------------- 
 fncode: check_fcall($l)
-    $while $l=~/\b(\w+)\(/g
-        $call add_function, $1, nowarn
+    $while $l=~/\b([\w\.]+)\(/g -> $fn
+        $if $fn=~/^(re|copy)\./
+            add_import($1)
+        $elif $fn=~/^\w+$/
+            $call add_function, $fn, nowarn
 
 # -----------------------------------        
 fncode: parse_function($name, $code)
@@ -210,7 +227,7 @@ fncode: parse_function($name, $code)
 
 #---------------------------
 subcode: check_for_zip
-    $if $v=~/,/ and $t!~/^zip\(/
+    $if $v=~/,/ and $t!~/^zip\(/ and $t!~/\.items\(\)/
         my @v=MyDef::utils::proper_split($v)
         my @t=MyDef::utils::proper_split($t)
         $if $#v>0 
