@@ -14,9 +14,12 @@ subcode: parsecode_print
         $call get_print_to
 
         $if $print_to=~/^\@\$?(.+)/ # hack from perl syntax
-            $call push_to_array, $1
+            my $array = $1
+            $call @simplify
+            $call push_to_array, $array
         $else
             $call @hack_newline
+            $call @simplify
             $if $print_to
                 $call print_to
             $else
@@ -31,6 +34,10 @@ subcode: parsecode_print
             $fmt = "\"$1\"$2"
         $else
             $add_newline = 0
+
+    subcode: simplify
+        $if $fmt=~/^"\%s" \% (.*)$/
+            $fmt = $1
 
     subcode: print_1
         $if $add_newline
@@ -49,7 +56,10 @@ subcode: fmt_string_return
     my $f = join('', @fmt_list)
     my $a = join(', ', @arg_list)
     $(if:1)
-        return ($vcnt, "\"$f\" % ($a)")
+        $if $vcnt == 1
+            return ($vcnt, "\"$f\" % $a")
+        $else
+            return ($vcnt, "\"$f\" % ($a)")
     $(else)
         $f=~s/\%s/{}/g
         return ($vcnt, "\"$f\".format($a)")

@@ -8,12 +8,10 @@ page: perl_to_python
     load_lines($in_file, \@lines)
 
     &call open_W, $out_file
+        $call dump_global
         $foreach $l in @lines
             chomp $l
-            $if $l=~/^\[GLOBAL\]/
-                $call dump_global
-            $else
-                $print $l
+            $print $l
 
     subcode: dump_global
         $global $use_RE
@@ -56,7 +54,6 @@ subcode: filters
             undef $stage
         next
     $elif /^filter: perl_to_python/
-        push @$out, "[GLOBAL]"
         next
     $elif /^module: perl/
         push @$out, $sp."module: python"
@@ -219,7 +216,6 @@ fncode: translate_exists($v, $k, $not)
 fncode: translate_for_param($t)
     $if $t =~/(.*?)\s+in\s+(.*)/ -> $v, $array
         $v=~s/\$//g
-        $print translate_for_param: [$t]
         $if $array =~ /^keys\s*\%(.*)/
             $array = translate_expr("\%$1")
         $elif $array =~ /^sort keys\s*\%(.*)/
