@@ -7,10 +7,25 @@ macros:
 page: test
     module: perl
 
-    my $A = {a=>1, b=>2}
-    my @B
-    push @B, {c=>$A->{a}}
+    $global $s := "    Hello World!"
+    $s=~s/^    //
+    $if $s=~/Hello/ and $s=~/World/
+        $print [$s]
+    $if $s=~/(\w+)!/ -> $name
+        $print Hi $name!
+
 /*
+    $(if:check_all)
+        my $a = "world"
+        my $b = "1, 2, 3"
+        my $s = "Hello $a, $b."
+        my $A = {a=>1}
+        $print $s
+        $print "$A->{a}"
+    $(if:check_all)
+        my $A = {a=>1, b=>2}
+        my @B
+        push @B, {c=>$A->{a}}
     $(if:check_all)
         my $A = [1, 2, 3]
         my @B = @$A  # deepcopy
@@ -116,5 +131,9 @@ page: test
     $(if:check_all)
         &call open_r, "test_func.def"
             $print $_-
+            last
+        $(set:file="test_func.def")
+        &call open_r, $(file)
+            print $_
             last
 */

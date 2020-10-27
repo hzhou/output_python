@@ -13,7 +13,7 @@ subcode: parsecode_print
         my ($n, $fmt)=fmt_string($param, 1)
         $call get_print_to
 
-        $if $print_to=~/^\@\$?(\w+)/ # hack from perl syntax
+        $if $print_to=~/^\@\$?(.+)/ # hack from perl syntax
             $call push_to_array, $1
         $else
             $call @hack_newline

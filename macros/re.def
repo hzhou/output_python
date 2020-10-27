@@ -1,10 +1,42 @@
 subcode: check_if_regex
-    my ($pre, $str, $not)
-    $if $param=~/^([^\/]+) (and|or)\s*(.*)/
-        # only support tailing regex for now
-        $pre = "$1 $2 "
-        $param=$3
+    $if $param=~/\/.*\//
+        my $caps
+        $if $param=~/^(.*?)\s+->\s+(.+)$/
+            ($param, $caps) = ($1, $2)
 
+        my @parts = split /(\s+(?:and|or)\s+)/, $param
+        $foreach $p in @parts
+            $if $p=~/\/.*\//
+                $p = translate_re($p)
+        $param = join('', @parts)
+
+        $if $caps
+            my (@tlist, @glist)
+            my $i=0
+            $foreach $t in split /,\s*/, $caps
+                $i++
+                $if $t ne "_"
+                    push @tlist, $t
+                    push @glist, $i
+            my $tlist=join(', ', @tlist)
+            my $glist=join(', ', @glist)
+
+            my $use_RE=MyDef::compileutil::get_macro_word("use_RE", 1)
+            $if $use_RE
+                $param =~ s/\bre\.(match|search)/RE.$1/g
+            push @$out, "$func $param:"
+            $if $use_RE
+                push @$out, "    $tlist = RE.m.group($glist)"
+            $else
+                $if $param=~/\b(re\.(match|search)\(.*\))/
+                    push @$out, "    m = $1"
+                    push @$out, "    $tlist = m.group($glist)"
+                $else
+                    die "regex pattern not found\n"
+            return 0
+
+fncode: translate_re($param)
+    my ($str, $not)
     $if $param=~/^(.+?)\s*([=!]~)\s*(\/.*)/
         $str = $1
         $if $2 eq "!~"
@@ -12,18 +44,14 @@ subcode: check_if_regex
         $param = $3
     $else
         $str = MyDef::compileutil::get_macro_word("re_str", 1)
+        $if $param=~/^!\s*(\/.*)/
+            $not = 1
+            $param = $1
 
-    $if $param=~/^\/(.*)\/(\w*)\s*(.*)$/ -> $pat, $flags, $caps
-        $if $caps=~/->\s*(.+)$/
-            $caps=$1
-
-        my $use_RE=MyDef::compileutil::get_macro_word("use_RE", 1)
+    $if $param=~/^\/(.*)\/(\w*)$/ -> $pat, $flags
         my $re
-        $if $use_RE
-            $re = "RE"
-        $else
-            add_import("re")
-            $re = "re"
+        add_import("re")
+        $re = "re"
 
         $if $not
             $re = "not $re"
@@ -38,23 +66,7 @@ subcode: check_if_regex
         $call @append_flags
         $re.=")"
 
-        push @$out, "$func $pre$re:"
-        $if $caps
-            my (@tlist, @glist)
-            my $i=0
-            $foreach $t in split /,\s*/, $caps
-                $i++
-                $if $t ne "_"
-                    push @tlist, $t
-                    push @glist, $i
-            my $tlist=join(', ', @tlist)
-            my $glist=join(', ', @glist)
-            $if $use_RE
-                push @$out, "    $tlist = RE.m.group($glist)"
-            $else
-                push @$out, "    m = $re"
-                push @$out, "    $tlist = m.group($glist)"
-        return 0
+        return $re
 
     subcode: append_flags
         $if $flags
@@ -67,7 +79,8 @@ subcode: check_if_regex
             $if @flist
                 $re.=", ".join('|', @flist)
 
-# --------------------------------- 
+
+# ---- outdated ----------------------------- 
 #-- assumes global: src, src_pos, src_len
 subcode: if_match
     my $n=0

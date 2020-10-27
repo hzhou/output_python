@@ -31,11 +31,33 @@ subcode: parsecode
     $if $l=~/^\$(\w+)\s*(.*?)\s*$/
         my ($func, $param)=($1, $2)
         $if $func eq "global"
+            my $use_G=MyDef::compileutil::get_macro_word("use_G", 1)
             # my @tlist=split /,\s*/, $param
             my @tlist = MyDef::utils::proper_split($param)
+            my (@vlist, @assigns)
             $foreach $v in @tlist
-                $if $v=~/^(\w+)/
+                $if $v=~/^(\w+)\s*:=\s*(.*)/ -> $name, $val
+                    push @vlist, $name
+                    $if $use_G
+                        push @assigns, "G.$name = $val"
+                    $else
+                        push @assigns, "$name = $val"
+                    $if $val =~ /^\[/
+                        $val = '[]'
+                    $elif $val =~ /^\{/
+                        $val = '{}'
+                    $elif $val =~ /^\d/
+                        $val = "0"
+                    $else
+                        $val = "''"
+                    $call dbl_push_key, globals, $name, "$name = $val"
+                $elif $v=~/^(\w+)/
                     $call dbl_push_key, globals, $1, $v
+                    push @vlist, $1
+            $if !$use_G
+                push @$out, 'global '. join(", ", @vlist)
+            $foreach $l in @assigns
+                push @$out, $l
             return 0
         $elif $func eq "my"
             $foreach $v in MyDef::utils::proper_split($param)
@@ -48,6 +70,7 @@ subcode: parsecode
             $call @check_if_regex
             $call @check_while_step
             $param=~s/^!\s*/not /
+            check_fcall($param)
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^(for(each)?)$/
@@ -122,10 +145,6 @@ subcode: parsecode_filter
         # for regex_compile
         $global %stub
         $stub{$1}++
-    $elif defined $check_def_global and $l=~/^(\w+)\s*=/
-        $if $globals{$1} and !$check_def_global->{$1}
-            push @$out, "global $1"
-            $check_def_global->{$1}=1
     $elif $l=~/^(.+)(\+\+|\-\-)\s*$/
         $if $2 eq '++'
             $l= "$1+=1"
@@ -155,8 +174,14 @@ subcode: dumpout
                 push @$f, "import $t\n"
         push @$f, "\n"
     $if @globals
-        $foreach $t in @globals
-            push @$f, "$t\n"
+        my $use_G=MyDef::compileutil::get_macro_word("use_G", 1)
+        $if $use_G
+            push @$f, "class G:\n"
+            $foreach $t in @globals
+                push @$f, "    $t\n"
+        $else
+            $foreach $t in @globals
+                push @$f, "$t\n"
         push @$f, "\n"
 
     my @tmp_out
@@ -206,10 +231,7 @@ fncode: parse_function($name, $code)
     $call @check_sub_functions
     $code->{scope}="list_sub"
 
-    $global $check_def_global
-    $check_def_global={}
     MyDef::compileutil::list_sub($code)
-    undef $check_def_global
 
     push @$out, "DEDENT"
     push @$out, "NEWLINE"
