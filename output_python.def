@@ -214,7 +214,7 @@ subcode: dumpout
 #---------------------------------------- 
 fncode: check_fcall($l)
     $while $l=~/\b([\w\.]+)\(/g -> $fn
-        $if $fn=~/^(re|copy)\./
+        $if $fn=~/^(re|copy|os|sys)\./
             add_import($1)
         $elif $fn=~/^\w+$/
             $call add_function, $fn, nowarn

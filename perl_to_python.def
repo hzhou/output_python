@@ -67,11 +67,8 @@ subcode: filters
         push @$out, "$sp$_"
         next
     $elif /^(\w+):(.*)/ -> $word, $val
-        $if $word eq "print_to" && $val=~/\s*\@(.*)/
-            my $var = translate_expr($1)
-            $if $use_G && $var=~/^\w+$/
-                $var = "G.$var"
-            push @$out, $sp."$word: \@$var"
+        $if $word eq "print_to"
+            push @$out, "$sp$word: ".translate_print_to($val)
         $elif $val=~/\s*([\$\@\%].*)/
             push @$out, $sp."$word: ".translate_expr($1)
         $else
@@ -79,32 +76,18 @@ subcode: filters
             push @$out, "$sp$_"
         next
     $elif /^\$\(/
-        $if /^(\$\(set:print_to=)\@(.*)\)/ -> $t1, $t2
-            push @$out, $sp.$t1.'@'.translate_expr($t2).')'
+        $if /^(\$\(set:print_to=)(.*)\)/ -> $t1, $t2
+            push @$out, $sp.$t1.translate_print_to($t2).')'
         $elif /^(\$\(set.*:\w+=)([\$\@\%].*)\)$/ -> $t1, $t2
             push @$out, $sp.$t1.translate_expr($t2).')'
         $else
             # skip mydef directive
             push @$out, "$sp$_"
         next
-    $elif /^return\s*(.*)/ -> $t
-        push @$out, $sp."return ".translate_expr($t)
+    $elif /^(my|return|push|print|system)\s*(.*)/ -> $func, $t
+        $call @perl_functions
         next
-    $elif /^push\s+\@(.*?),\s+(.*)/ -> $array, $t
-        $if $array =~ /^\{(.*)\}/
-            $array = $1
-        $array = translate_expr($array)
-        $t = translate_expr($t)
-        push @$out, $sp . "$array.append($t)"
-        next
-    $elif /^s\/(.*)\/(.*)\// -> $pat, $repl
-        my $s = "\x24(re_str)"
-        push @$out, $sp . "$s = re.sub(r'$pat', '$repl', $s)"
-        next
-    $elif /^(\S+)\s*=~\s*s\/(.*)\/(.*)\// -> $str, $pat, $repl
-        my $s = translate_expr($str)
-        push @$out, $sp . "$s = re.sub(r'$pat', '$repl', $s)"
-        next
+    $call @perl_regex
     $elif /^([\&\$]call)\s*(\S+)(.*)/ -> $call, $name, $tail
         $if !$tail
             push @$out, "$sp$call $name"
@@ -113,22 +96,52 @@ subcode: filters
             $tail = translate_expr($tail)
             push @$out, "$sp$call $name, $tail"
         next
-    $elif /^my\s+(.*)/ -> $t
-        push @$out, $sp . translate_my($t)
-        next
-    $elif /^print\s+(.*)/ -> $t
-        $if $t=~/^(\w+)\s+(.+)/ -> $FH, $t
-            $t = translate_expr($t)
-            push @$out, $sp . "print($t, end='', file=$FH)"
-        $else
-            $t = translate_expr($t)
-            push @$out, $sp . "print($t)"
-        next
     $elif /^\$(\w+)\s*$/
         push @$out, "$sp$_"
         next
     $elif /^\$(\w+)\s+(.*)/ -> $func, $t
         my $lead = "$sp\$$func "
+        $call @mydef_funcs
+        next
+    $elif /^(.+)/ -> $t
+        $if $direct_translate{$t}
+            push @$out, $sp . $direct_translate{$t}
+        $else
+            push @$out, $sp . translate_Expr($t)
+        next
+
+    # ---------------------
+    subcode: perl_regex
+        $elif /^s\/(.*)\/(.*)\// -> $pat, $repl
+            my $s = "\x24(re_str)"
+            push @$out, $sp . "$s = re.sub(r'$pat', '$repl', $s)"
+            next
+        $elif /^(\S+)\s*=~\s*s\/(.*)\/(.*)\// -> $str, $pat, $repl
+            my $s = translate_expr($str)
+            push @$out, $sp . "$s = re.sub(r'$pat', '$repl', $s)"
+            next
+
+    subcode: perl_functions
+        $if $func eq "my"
+            push @$out, $sp . translate_my($t)
+        $elif $func eq "return"
+            push @$out, $sp."return ".translate_expr($t)
+        $elif $func eq "push" and $t=~/^(\@.*?),\s+(.*)/ -> $array, $t
+            $array = translate_expr($array, "left")
+            $t = translate_expr($t)
+            push @$out, $sp . "$array.append($t)"
+        $elif $func eq "print"
+            $if $t=~/^(\w+)\s+(.+)/ -> $FH, $t
+                $t = translate_expr($t)
+                push @$out, $sp . "print($t, end='', file=$FH)"
+            $else
+                $t = translate_expr($t)
+                push @$out, $sp . "print($t)"
+        $elif $func eq "system"
+            $t = translate_expr($t)
+            push @$out, $sp . "os.system($t)"
+
+    subcode: mydef_funcs
         $if $func =~ /^(print|die|warn)$/
             $t = translate_print($t)
             $t =~ s/\\([@%])/$1/g
@@ -151,14 +164,8 @@ subcode: filters
         $else
             # other $func
             push @$out, $sp . translate_Expr("$func $t")
-        next
-    $elif /^(.+)/ -> $t
-        $if $direct_translate{$t}
-            push @$out, $sp . $direct_translate{$t}
-        $else
-            push @$out, $sp . translate_Expr($t)
-        next
 
+#---------------------------------------- 
 subcode: filter_if_cond
     my $caps
     $if $t=~/^(.*?)\s+->\s+(.+)$/
@@ -212,6 +219,15 @@ fncode: translate_exists($v, $k, $not)
             return "$k not in $v"
         $else
             return "$k in $v"
+
+fncode: translate_print_to($t)
+    $if $t=~/^\w+$/
+        return $t
+    $elif $t=~/^@/
+        # need '@' to signify an array
+        return '@'.translate_expr($t)
+    $else
+        return translate_expr($t)
 
 fncode: translate_for_param($t)
     $if $t =~/(.*?)\s+in\s+(.*)/ -> $v, $array
@@ -295,7 +311,9 @@ fncode: translate_print($t)
         $if $t=~/\G$/gc
             last
         $elif $t=~/\G\$/gc
-            $if $t=~/\G(\w+)/gc
+            $if $t=~/\G(\d+)/gc
+                push @fmt_list, "\$$1"
+            $elif $t=~/\G(\w+)/gc
                 my $v = $1
                 $if $t=~/\G((->)?\[.*?\])/gc
                     $v.=$1;
@@ -621,6 +639,11 @@ fncode: translate_expr($l, $context)
                 $processed = 1
             $elif $primary =~ /^(length)$/
                 $primary = $fcall_map{$1}
+            $elif $primary eq "split"
+                $if $exp=~/^\/(.*)\/,\s*(.*)$/
+                    $token = "re.split(r'$1', $2)"
+                    $type = "atom-array"
+                    $processed = 1
 
         subcode: check_exp_dict
             $(if:1)
