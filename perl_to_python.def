@@ -21,19 +21,29 @@ page: perl_to_python
             $print
 
 fncode: load_lines($in_file, $out)
-    $call get_file_lines, $in_file
-    my $stage
-    $foreach @lines
-        $if /^include:\s*(.*)/
-            load_lines(find_file($1), $out)
-            next
+    my @include_list = ($in_file)
+    $while my $file = shift @include_list
+        $file = find_file($file)
+        $call get_file_lines, $file
+        my $stage
+        $foreach @lines
+            $if /^\/\*\s+skip\s+python/
+                $stage = "skip_python"
+                next
+            $elif $stage eq "skip_python"
+                $if /^\*\//
+                    undef $stage
+                next
+            $elif /^include:\s*(.*)/
+                push @include_list, $1
+                next
 
-        my $sp
-        $if /^(\s+)(.*)/ -> $sp*, $_*
-            NOOP
+            my $sp
+            $if /^(\s+)(.*)/ -> $sp*, $_*
+                NOOP
 
-        $call @filters
-        push @$out, $_
+            $call @filters
+            push @$out, $_
 
 fncode: find_file($f)
     return $f
@@ -44,7 +54,13 @@ subcode: filters
     $elif /^#.*$/
         $if /^#\s*skip/
             push @$out, $sp."pass"
+        $else
+            push @$out, $sp.$_
         # skip comments
+        next
+    $elif /\$: \\x23/
+        # pass-thru comments
+        push @$out, $sp.$_
         next
     $elif /^\/\*(\s|$)/
         $stage = "comment"
@@ -54,6 +70,9 @@ subcode: filters
             undef $stage
         next
     $elif /^filter: perl_to_python/
+        # allow python specific code
+        push @$out, "macros:"
+        push @$out, "    perl_to_python: 1"
         next
     $elif /^module: perl/
         push @$out, $sp."module: python"
@@ -66,7 +85,7 @@ subcode: filters
             s/\$//g
         push @$out, "$sp$_"
         next
-    $elif /^(\w+):(.*)/ -> $word, $val
+    $elif /^(\w+):\s*(.*)/ -> $word, $val
         $if $word eq "print_to"
             push @$out, "$sp$word: ".translate_print_to($val)
         $elif $val=~/\s*([\$\@\%].*)/
@@ -84,16 +103,17 @@ subcode: filters
             # skip mydef directive
             push @$out, "$sp$_"
         next
-    $elif /^(my|return|push|print|system)\s*(.*)/ -> $func, $t
+    $elif /^(my|return|push|unshift|print|system|chomp|chdir|mkdir)\s*(.*)/ -> $func, $t
         $call @perl_functions
         next
     $call @perl_regex
-    $elif /^([\&\$]call)\s*(\S+)(.*)/ -> $call, $name, $tail
+    $elif /^([\&\$]call)\s*(\w+)(.*)/ -> $call, $name, $tail
         $if !$tail
             push @$out, "$sp$call $name"
         $else
             $tail=~s/^,\s*//
-            $tail = translate_expr($tail)
+            $if $tail=~/\s*([\$\@\%].*)/ && $tail !~ /# string\s*$/
+                $tail = translate_expr($tail)
             push @$out, "$sp$call $name, $tail"
         next
     $elif /^\$(\w+)\s*$/
@@ -122,14 +142,20 @@ subcode: filters
             next
 
     subcode: perl_functions
+        # python raises exception
+        $t=~s/\s+or\s+die.*//
+
         $if $func eq "my"
             push @$out, $sp . translate_my($t)
         $elif $func eq "return"
             push @$out, $sp."return ".translate_expr($t)
-        $elif $func eq "push" and $t=~/^(\@.*?),\s+(.*)/ -> $array, $t
+        $elif $func =~/^(push|unshift)$/ and $t=~/^(\@.*?),\s+(.*)/ -> $array, $t
             $array = translate_expr($array, "left")
             $t = translate_expr($t)
-            push @$out, $sp . "$array.append($t)"
+            $if $func eq "push"
+                push @$out, $sp . "$array.append($t)"
+            $else
+                push @$out, $sp . "$array.insert(0, $t)"
         $elif $func eq "print"
             $if $t=~/^(\w+)\s+(.+)/ -> $FH, $t
                 $t = translate_expr($t)
@@ -140,6 +166,15 @@ subcode: filters
         $elif $func eq "system"
             $t = translate_expr($t)
             push @$out, $sp . "os.system($t)"
+        $elif $func eq "chomp"
+            $if $t
+                $t = translate_expr($t)
+                push @$out, $sp."$t.rstrip()"
+            $else
+                push @$out, $sp."\x24(re_str).rstrip()"
+        $elif $func=~/^(mkdir|chdir)$/
+            $t = translate_expr($t)
+            push @$out, $sp."os.$1($t)"
 
     subcode: mydef_funcs
         $if $func =~ /^(print|die|warn)$/
@@ -163,7 +198,7 @@ subcode: filters
             push @$out, "$sp\$$func $t"
         $else
             # other $func
-            push @$out, $sp . translate_Expr("$func $t")
+            push @$out, $sp . translate_Expr("\$$func $t")
 
 #---------------------------------------- 
 subcode: filter_if_cond
@@ -177,18 +212,20 @@ subcode: filter_if_cond
     my @parts = split /\s+(and|or|&&|\|\|)\s+/, $t
     $foreach $p in @parts
         my $not
-        $if $t=~/^!\s*(.*)/
-            $t = $1
-            $not = 1
+        $if $p=~/^!\s*(.*)/
+            $p = $1
+            $not = "not "
 
         $if $p eq "&&"
             $p = "and"
         $elif $p eq "||"
             $p = "or"
-        $elif $t=~/^exists\s+(.*?)(->)?\{(.+)\}/ -> $v, -, $k
+        $elif $p=~/^exists\s+(.*?)(->)?\{(.+)\}/ -> $v, -, $k
             $p = translate_exists($v, $k, $not)
+        $elif $p=~/^-d\s+(.*)/
+            $p = $not."os.path.isdir(".translate_expr($1).")"
         $else
-            $p = translate_expr($p)
+            $p = $not.translate_expr($p)
     $if $caps
         push @parts, "-> $caps"
         $use_RE = 1
@@ -225,7 +262,7 @@ fncode: translate_print_to($t)
         return $t
     $elif $t=~/^@/
         # need '@' to signify an array
-        return '@'.translate_expr($t)
+        return '@'.translate_expr($t, "left")
     $else
         return translate_expr($t)
 
@@ -240,29 +277,49 @@ fncode: translate_for_param($t)
             $array = translate_expr($array, "left")
 
         return "$v in $array"
+    $elif $t=~/(\S+)\s*=\s*(\S+):(\S+)/
+        my $i = translate_expr($1, "left")
+        my $i1 = translate_expr($2)
+        my $i2 = translate_expr($3)
+        return "$i=$i1:$i2"
 
 fncode: translate_global($t)
     $global %global_hash
-    my @alist = split /,\s*/, $t
-    $foreach $a in @alist
-        $if $a =~/^([\$\@\%])(\w+)(.*)/  -> $sigil, $name, $tail
-            $global_hash{$name} = $sigil
-            $if $tail =~ /^\s*(:?=)\s*(.*)/
-                $a = "$name $1 ".translate_expr($2)
-            $elif $sigil eq '@'
-                $a = "$name = []"
-            $elif $sigil eq '%'
-                $a = "$name = {}"
-            $else
-                $a = "$name = ''"
-    return join(', ', @alist)
+    $if $t=~/^([\$\@\%])(\w+)\s*=\s*(\(.*\))\s*$/ -> $sigil, $name, $t
+        $global_hash{$name} = $sigil
+        $t = translate_expr($t)
+        $if $sigil eq '%' and $t=~/^\((.*)\)$/
+            $t = "{$1}"
+        return "$name = ".translate_expr($t)
+    $else
+        my @alist = split /,\s*/, $t
+        $foreach $a in @alist
+            $if $a =~/^([\$\@\%])(\w+)(.*)/  -> $sigil, $name, $tail
+                $global_hash{$name} = $sigil
+                $if $tail =~ /^\s*(:?=)\s*(.*)/
+                    $a = "$name $1 ".translate_expr($2)
+                $elif $sigil eq '@'
+                    $a = "$name = []"
+                $elif $sigil eq '%'
+                    $a = "$name = {}"
+                $else
+                    $a = "$name = ''"
+        return join(', ', @alist)
 
 fncode: translate_my($t)
     # $print translate_my: [$t]
     my (@alist, @blist)
-    $if $t=~/=/
+    $if $t=~/\@(\w+)\s*=\s*split\s*\/(.*)\/,\s*(.*)/ -> $a, $pat, $str
+        # FIXME: only works for literal delimiter
+        $str = translate_expr($str)
+        $if $pat =~ /^\\s\+$/
+            return "$a = $str.split()"
+        $else
+            return "$a = $str.split('$pat')"
+    $elif $t=~/=/
+        # just assignments
         return translate_Expr($t)
-    $elif $t =~/^\((.*)\)$/ -> $a
+    $elif $t =~/^\((.*)\)\s*$/ -> $a
         @alist = split /,\s*/, $a
     $else
         @alist = ($t)
@@ -423,15 +480,29 @@ fncode: translate_expr($l, $context)
         $elif $l=~/\G(\/([^\\]|\\.)*\/\w*)/gc
             $token=$1
             $type="atom-re"
+            $if $token=~/^\/(\$\w+.*)\//
+                $token = '/${'.translate_expr($1).'}/'
         $elif $l=~/\G(\d[0-9\.]*)/gc
             $token=$1
             $type="atom-number"
         $elif $l=~/\G(\$\(\w+\))/gc
             $token=$1
             $type="atom-macro"
-        $elif $l=~/\G(\$\d+)/gc
-            $token = $1
-            $type="atom-macro"
+        #---- special variables ----
+        $elif $l=~/\G\$_/gc
+            $token = "\x24(re_str)"
+            $type = "atom-val"
+        $elif $l=~/\G\$(\d+)/gc
+            $(if:1)
+                $token = "RE.m.group($1)"
+                $type = "atom-var"
+            $(else)
+                $token = $1
+                $type="atom-macro"
+        $elif $l=~/\G\@(ARGV)/gc
+            $token = "sys.argv[1:]"
+            $type="atom-var"
+        #---- perl variables ----
         $elif $l=~/\G(\\?[\$\@\%]+)(\w+)/gc -> $sigil, $id
             $if $use_G
                 $if $global_hash{$id}
@@ -458,8 +529,8 @@ fncode: translate_expr($l, $context)
         $elif $l=~/\G(and|or)\b/gc
             $token=$1
             $type="operator"
-        $elif $l=~/\G(eq|lt|le|gt|ge)\b/gc
-            $global %str_cmp_ops=(eq=>'==', lt=>'<', le=>'<=', gt=>'>', ge=>'>=')
+        $elif $l=~/\G(eq|lt|le|gt|ge|ne)\b/gc
+            $global %str_cmp_ops=(eq=>'==', lt=>'<', le=>'<=', gt=>'>', ge=>'>=', ne=>'!=')
             $token=$str_cmp_ops{$1}
             $type="operator"
         $elif $l=~/\G(\w+)/gc
@@ -644,6 +715,8 @@ fncode: translate_expr($l, $context)
                     $token = "re.split(r'$1', $2)"
                     $type = "atom-array"
                     $processed = 1
+            $elif $primary eq "glob"
+                $primary = "glob.glob"
 
         subcode: check_exp_dict
             $(if:1)

@@ -10,6 +10,10 @@ subcode: check_if_regex
                 $p = translate_re($p)
         $param = join('', @parts)
 
+        my $use_RE=MyDef::compileutil::get_macro_word("use_RE", 1)
+        $if $use_RE
+            $param =~ s/\bre\.(match|search)/RE.$1/g
+
         $if $caps
             my (@tlist, @glist)
             my $i=0
@@ -21,9 +25,6 @@ subcode: check_if_regex
             my $tlist=join(', ', @tlist)
             my $glist=join(', ', @glist)
 
-            my $use_RE=MyDef::compileutil::get_macro_word("use_RE", 1)
-            $if $use_RE
-                $param =~ s/\bre\.(match|search)/RE.$1/g
             push @$out, "$func $param:"
             $if $use_RE
                 push @$out, "    $tlist = RE.m.group($glist)"
@@ -44,9 +45,9 @@ fncode: translate_re($param)
         $param = $3
     $else
         $str = MyDef::compileutil::get_macro_word("re_str", 1)
-        $if $param=~/^!\s*(\/.*)/
+        $if $param=~/^(!|not)\s*(\/.*)/
             $not = 1
-            $param = $1
+            $param = $2
 
     $if $param=~/^\/(.*)\/(\w*)$/ -> $pat, $flags
         my $re
@@ -61,8 +62,15 @@ fncode: translate_re($param)
             substr($pat, 0, 1) = ""
         $else
             $re.=".search"
+        $re .= '('
 
-        $re.="(r'$pat', $str"
+        $if $pat=~/^\$\{(.*)\}$/
+            # regex in variable
+            $re .= $1
+        $else
+            $re.="r'$pat'"
+
+        $re.=", $str"
         $call @append_flags
         $re.=")"
 

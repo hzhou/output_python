@@ -8,13 +8,14 @@ page: test
     module: perl
 
     $global $s := "    Hello World!"
+    $: \x23 ---- Adding comments
     $s=~s/^    //
     $if $s=~/Hello/ and $s=~/World/
         $print [$s]
     $if $s=~/(\w+)!/ -> $name
         $print Hi $name!
 
-/*
+/* skip python
     $(if:check_all)
         my $a = "world"
         my $b = "1, 2, 3"

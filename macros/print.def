@@ -9,15 +9,18 @@ subcode: parsecode_print
     $if $func eq "die"
         my ($n, $fmt)=fmt_string($param, 0)
         push @$out, "raise Exception($fmt)"
+    $elif $func eq "warn"
+        my ($n, $fmt)=fmt_string($param, 0)
+        push @$out, "print($fmt, file=sys.stderr)"
     $else
-        my ($n, $fmt)=fmt_string($param, 1)
         $call get_print_to
-
         $if $print_to=~/^\@\$?(.+)/ # hack from perl syntax
             my $array = $1
+            my ($n, $fmt)=fmt_string($param, 0)
             $call @simplify
             $call push_to_array, $array
         $else
+            my ($n, $fmt)=fmt_string($param, 1)
             $call @hack_newline
             $call @simplify
             $if $print_to

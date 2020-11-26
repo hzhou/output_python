@@ -74,6 +74,7 @@ subcode: parsecode
             push @$out, "$func $param:"
             return 0
         $elif $func=~/^(for(each)?)$/
+            check_import($param)
             $if $param =~/^(\w+)=(.*)/
                 my ($v, $t) =($1, $2)
                 $if $t=~/^0:([^:]+)$/
@@ -124,6 +125,7 @@ subcode: parsecode
         return 0
     # ---------------------
     $call @parsecode_filter
+    check_import($l)
     check_fcall($l)
     push @$out, $l
     return 0
@@ -212,11 +214,13 @@ subcode: dumpout
                 $i--
 
 #---------------------------------------- 
+fncode: check_import($l)
+    $while $l=~/\b(re|os|sys|copy|glob)\./g
+        add_import($1)
+
 fncode: check_fcall($l)
     $while $l=~/\b([\w\.]+)\(/g -> $fn
-        $if $fn=~/^(re|copy|os|sys)\./
-            add_import($1)
-        $elif $fn=~/^\w+$/
+        $if $fn=~/^\w+$/
             $call add_function, $fn, nowarn
 
 # -----------------------------------        
