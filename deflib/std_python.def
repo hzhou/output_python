@@ -7,7 +7,7 @@ macros:
 subcode: basic_frame
     # I don't really see point of this, albeit works.
     $def main
-        $call @main2
+        $call @main
 
     $if __name__ == "__main__"
         main()
