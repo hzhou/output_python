@@ -1,28 +1,80 @@
 subcode: check_if_regex
-    $if $param=~/(\S+)\s*=~\s*\/(.*)\/(\w*)/
-        my ($s, $pat, $flags)=($1,$2,$3)
+    $if $param=~/\/.*\//
         my $caps
-        $if $param=~/->\s*([\w\s,]+)$/
-            $caps=$1
-        add_import("re")
-        my $re="r'$pat', $s"
-        $call @append_flags
+        $if $param=~/^(.*?)\s+->\s+(.+)$/
+            ($param, $caps) = ($1, $2)
 
-        &call return_newblock, $func
-            $if !$caps
-                push @src, "$func re.search($re):"
-                push @src, "INDENT"
-                push @src, "BLOCK"
-                push @src, "DEDENT"
+        my @parts = split /(\s+(?:and|or)\s+)/, $param
+        $foreach $p in @parts
+            $if $p=~/\/.*\//
+                $p = translate_re($p)
+        $param = join('', @parts)
+
+        my $use_RE=MyDef::compileutil::get_macro_word("use_RE", 1)
+        $if $use_RE
+            $param =~ s/\bre\.(match|search)/RE.$1/g
+
+        $if $caps
+            my (@tlist, @glist)
+            my $i=0
+            $foreach $t in split /,\s*/, $caps
+                $i++
+                $if $t ne "_"
+                    push @tlist, $t
+                    push @glist, $i
+            my $tlist=join(', ', @tlist)
+            my $glist=join(', ', @glist)
+
+            push @$out, "$func $param:"
+            $if $use_RE
+                push @$out, "    $tlist = RE.m.group($glist)"
             $else
-                $if $func eq "elif"
-                    die "regex doesn't work with elif\n"
-                push @src, "_m=re.search($re)"
-                push @src, "$func _m:"
-                push @src, "INDENT"
-                $call @add_caps
-                push @src, "BLOCK"
-                push @src, "DEDENT"
+                $if $param=~/\b(re\.(match|search)\(.*\))/
+                    push @$out, "    m = $1"
+                    push @$out, "    $tlist = m.group($glist)"
+                $else
+                    die "regex pattern not found\n"
+            return 0
+
+fncode: translate_re($param)
+    my ($str, $not)
+    $if $param=~/^(.+?)\s*([=!]~)\s*(\/.*)/
+        $str = $1
+        $if $2 eq "!~"
+            $not = 1
+        $param = $3
+    $else
+        $str = MyDef::compileutil::get_macro_word("re_str", 1)
+        $if $param=~/^(!|not)\s*(\/.*)/
+            $not = 1
+            $param = $2
+
+    $if $param=~/^\/(.*)\/(\w*)$/ -> $pat, $flags
+        my $re
+        add_import("re")
+        $re = "re"
+
+        $if $not
+            $re = "not $re"
+
+        $if substr($pat, 0, 1) eq "^"
+            $re.=".match"
+            substr($pat, 0, 1) = ""
+        $else
+            $re.=".search"
+        $re .= '('
+
+        $if $pat=~/^\$\{(.*)\}$/
+            # regex in variable
+            $re .= $1
+        $else
+            $re.="r'$pat'"
+
+        $re.=", $str"
+        $call @append_flags
+        $re.=")"
+
+        return $re
 
     subcode: append_flags
         $if $flags
@@ -35,15 +87,8 @@ subcode: check_if_regex
             $if @flist
                 $re.=", ".join('|', @flist)
 
-    subcode: add_caps
-        $if $caps
-            my @cap_list=split /,\s*/, $caps
-            my $i=0
-            $foreach $cap in @cap_list
-                $i++
-                push @src, "$cap = _m.group($i)"
-        
-# --------------------------------- 
+
+# ---- outdated ----------------------------- 
 #-- assumes global: src, src_pos, src_len
 subcode: if_match
     my $n=0

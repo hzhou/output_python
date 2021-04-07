@@ -1,16 +1,35 @@
 #-- define macro PYTHON3 for python 3 in deflib/python/_config.def
+#-- NOTE: python3 is the default now, define PYTHON2 otherwise
+
 include: python/_config.def?
 macros:
     comment: #
     ternary: $2 if $1 else $3
+    re_str: line  # default in open_r
 
 subcode: basic_frame
-    # I don't really see point of this, albeit works.
+    NEWLINE?
     $def main
         $call @main
 
-    $if __name__ == "__main__"
-        main()
+    $(block:global_exit)
+        $: \x23 ---------------------------------------------------------
+        $if __name__ == "__main__"
+            main()
+
+#---------------------------------------- 
+subcode: class_RE
+    $(setmacro:use_RE=1)
+    $import re
+    $(block:global_init)
+        class RE:
+            m = None
+            def match(pat, str, flags=0):
+                RE.m = re.match(pat, str, flags)
+                return RE.m
+            def search(pat, str, flags=0):
+                RE.m = re.search(pat, str, flags)
+                return RE.m
 
 #---------------------------------------- 
 subcode: open_r(name)
@@ -19,6 +38,11 @@ subcode: open_r(name)
             BLOCK
 
 subcode: open_w(name)
+    with open($(name), "w") as Out:
+        BLOCK
+
+subcode: open_W(name)
+    print("  --> [%s]" % $(name))
     with open($(name), "w") as Out:
         $(set:print_to=Out)
         BLOCK

@@ -6,21 +6,41 @@ macros:
     printf_python: %
 
 subcode: parsecode_print
-    $if !$param
-        push @$out, "print('')"
+    $if $func eq "die"
+        my ($n, $fmt)=fmt_string($param, 0)
+        push @$out, "raise Exception($fmt)"
+    $elif $func eq "warn"
+        my ($n, $fmt)=fmt_string($param, 0)
+        push @$out, "print($fmt, file=sys.stderr)"
     $else
-        my ($n, $fmt)=fmt_string($param, 1)
+        $call get_print_to
+        $if $print_to=~/^\@\$?(.+)/ # hack from perl syntax
+            my $array = $1
+            my ($n, $fmt)=fmt_string($param, 0)
+            $call @simplify
+            $call push_to_array, $array
+        $else
+            my ($n, $fmt)=fmt_string($param, 1)
+            $call @hack_newline
+            $call @simplify
+            $if $print_to
+                $call print_to
+            $else
+                $call print_1
+
+    subcode: push_to_array(A)
+        push @$out, "$(A).append($fmt)"
+
+    subcode: hack_newline
         my $add_newline = 1
         $if $fmt=~/^"(.*)\\n"(.*)/
             $fmt = "\"$1\"$2"
         $else
             $add_newline = 0
 
-        $call get_print_to
-        $if $print_to
-            $call print_to
-        $else
-            $call print_1
+    subcode: simplify
+        $if $fmt=~/^"\%s" \% (.*)$/
+            $fmt = $1
 
     subcode: print_1
         $if $add_newline
@@ -34,3 +54,15 @@ subcode: parsecode_print
         $else
             push @$out, "print($fmt, end='', file=$print_to)"
 
+subcode: fmt_string_return
+    my $vcnt = @arg_list
+    my $f = join('', @fmt_list)
+    my $a = join(', ', @arg_list)
+    $(if:1)
+        $if $vcnt == 1
+            return ($vcnt, "\"$f\" % $a")
+        $else
+            return ($vcnt, "\"$f\" % ($a)")
+    $(else)
+        $f=~s/\%s/{}/g
+        return ($vcnt, "\"$f\".format($a)")
