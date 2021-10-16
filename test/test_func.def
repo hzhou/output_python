@@ -3,8 +3,15 @@ page: test
 
     $print Hello World!
 
+    def A(msg):
+        print(msg)
+
     s = get_name()
     $print s = $s
+
+    A("Test in-place function A")
+
+    $list C
 
 subcode: _autoload
     $list get_name
@@ -13,7 +20,11 @@ fncode: get_name
     $global g_name = "Hello"
     return "World!!!"
 
+fncode: C(msg):
+    print(msg)
+
 /* expect output:
 Hello World!
 s = World!!!
+Test in-place function A
 */
