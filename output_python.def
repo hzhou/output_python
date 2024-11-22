@@ -21,7 +21,7 @@ subcode: init_page
         $page->{autolist} = 1
     $call survey_functions
 
-    $map dbl_list, globals, imports, imports_future
+    $map dbl_list, globals, imports, imports_future, imports_try
 
     $if !$PYTHON3
         add_import_future("print_function")
@@ -64,6 +64,9 @@ subcode: parsecode
                 push @$out, $v
         $elif $func eq "import"
             add_import($param)
+            return 0
+        $elif $func eq "try_import"
+            add_import_try($param)
             return 0
         $call @parse_func_list
         $elif $func=~/^(if|elif|while)$/
@@ -161,6 +164,9 @@ fncode: add_import($t)
 fncode: add_import_future($t)
     $call dbl_push, imports_future, $t
 
+fncode: add_import_try($t)
+    $call dbl_push, imports_try, $t
+
 subcode: dumpout
     $call @fix_template
     $if !$PYTHON3
@@ -175,6 +181,23 @@ subcode: dumpout
             $else
                 push @$f, "import $t\n"
         push @$f, "\n"
+    $if @imports_try
+        $foreach $t in @imports_try
+            my $has
+            $if $t=~/^(\w+)/
+                $has = "has_$1"
+                push @$f, "try:\n"
+                $if $t=~/(.*)\s+(from\s+\S+)$/
+                    push @$f, "    $2 import $1\n"
+                $else
+                    push @$f, "    import $t\n"
+                push @$f, "    $has=True\n"
+                push @$f, "except ImportError:\n"
+                push @$f, "    print('Missing module $t')\n"
+                push @$f, "    $has=False\n"
+            $else
+                die "Wrong syntax: \$try_import $t\n"
+
     $if @globals
         my $use_G=MyDef::compileutil::get_macro_word("use_G", 1)
         $if $use_G
