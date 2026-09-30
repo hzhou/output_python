@@ -1,8 +1,5 @@
 subcode: _autoload
-    $(if:PYTHON2)
-        from Tkinter import *
-    $(else)
-        from tkinter import *
+    from tkinter import *
 
 subcode: tkinter
     win_main = Tk()

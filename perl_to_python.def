@@ -245,17 +245,10 @@ fncode: translate_exists($v, $k, $not)
         $k = "'$k'"
     $else
         $k = translate_expr($k)
-    $(if:0)
-        # python2
-        $if $not
-            return "not $v.has_key($k)"
-        $else
-            return "$v.has_key($k)"
-    $(else)
-        $if $not
-            return "$k not in $v"
-        $else
-            return "$k in $v"
+    $if $not
+        return "$k not in $v"
+    $else
+        return "$k in $v"
 
 fncode: translate_print_to($t)
     $if $t=~/^\w+$/

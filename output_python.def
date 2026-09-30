@@ -11,21 +11,11 @@ page: output_python, output_main
     comment: #
 
 subcode: init_page
-    $global $PYTHON3=1
-    $if $MyDef::def->{macros}->{PYTHON3}
-        $PYTHON3=1
-    $if $MyDef::def->{macros}->{PYTHON2}
-        undef $PYTHON3
-
     $if 0 # if it is a module
         $page->{autolist} = 1
     $call survey_functions
 
     $map dbl_list, globals, imports, imports_future, imports_try
-
-    $if !$PYTHON3
-        add_import_future("print_function")
-        add_import_future("division")
 
 subcode: parsecode
     $if $l=~/^\$(\w+)\s*(.*?)\s*$/
@@ -148,8 +138,6 @@ subcode: parsecode_filter
     $if $l=~/^(def|if|elif|else|while|for)\b(.*?):?\s*$/
         # fix forgotten :
         $l="$1$2:"
-    $elif !$PYTHON3 and $l=~/\binput\s*\(/
-        $l = $`."raw_input(".$';
     $elif $l=~/^(print)\s+(.*)$/
         $l="$1($2)"
     $elif $l=~/^DUMP_STUB\s+(\w+)/
@@ -175,11 +163,11 @@ fncode: add_import_try($t)
 
 subcode: dumpout
     $call @fix_template
-    $if !$PYTHON3
-        $if @imports_future
-            my $t = join(", ", @imports_future)
-            push @$f, "from __future__ import $t\n"
-            push @$f, "\n"
+    # from __future__ must come first (e.g. annotations)
+    $if @imports_future
+        my $t = join(", ", @imports_future)
+        push @$f, "from __future__ import $t\n"
+        push @$f, "\n"
     $if @imports
         $foreach $t in @imports
             $if $t=~/(.*)\s+(from\s+\S+)$/

@@ -1,7 +1,3 @@
-#-- define macro PYTHON3 for python 3 in deflib/python/_config.def
-#-- NOTE: python3 is the default now, define PYTHON2 otherwise
-
-include: python/_config.def?
 macros:
     comment: #
     ternary: $2 if $1 else $3

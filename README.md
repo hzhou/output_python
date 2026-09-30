@@ -98,8 +98,6 @@ Optional, via `include:`:
 * `python/parse.def` -- `parse_loop`, `parse_frame`, `if_match_continue`, `if_match_break`, and `parse_operator_precedence` for building parsers.
 * `python/tkinter.def` -- a Tkinter main window frame.
 
-Python 2 output can be selected by defining the macro `PYTHON2` (adds `from __future__` imports and uses `raw_input`).
-
 #### perl_to_python
 
 `perl_to_python in.def out.def` converts a MyDef source written for `module: perl` into one for `module: python` (Perl statements such as `my`, `push`, `s///`, `system`, `chomp` are translated; MyDef directives are kept). Wrap Perl-only parts in `/* skip python ... */`.
