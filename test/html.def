@@ -13,7 +13,7 @@ page: html
 fncode: parse_html(src)
     tag_stack=[]
     cur_list=[]
-    tag_stack.append: {'_name':'root', '_list':cur_list}
+    tag_stack.append({'_name':'root', '_list':cur_list})
 
     $call parse_it
 
@@ -30,7 +30,7 @@ fncode: parse_html(src)
                 continue
             $if_match [^<]+
                 #- text node ----
-                cur_list.append: m.group(0)
+                cur_list.append(m.group(0))
                 continue
             $if_match <(\w+)(.*?)>
                 #- start tag ----
@@ -50,7 +50,7 @@ fncode: parse_html(src)
         parse_attribute(tag, s_attr)
 
         #- append to the child node list 
-        cur_list.append: tag
+        cur_list.append(tag)
 
         $if '/' in tag or re.match(r"area|base|br|col|embed|hr|img|input|keygen|link|meta|param|source|track|wbr", s_name, re.I)
             #- self closed
@@ -65,7 +65,7 @@ fncode: parse_html(src)
                     $call @parse_script
         $else
             #- for the rest, push a new context
-            tag_stack.append: tag
+            tag_stack.append(tag)
             cur_list=[]
             tag['_list'] = cur_list
 

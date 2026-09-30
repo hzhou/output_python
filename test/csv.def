@@ -10,7 +10,7 @@ page: csv, basic_frame
 fncode: csv_simple(src)
     row_list=[]
     $for line in src.split('\n')
-        row_list.append: re.split(r',\s*', line.lstrip())
+        row_list.append(re.split(r',\s*', line.lstrip()))
     return row_list
 
 #---- parse csv -------------------
@@ -44,7 +44,7 @@ fncode: csv(src)
 
         $if_match \r?\n
             $call push_rec
-            row_list.append: cur_row
+            row_list.append(cur_row)
             cur_row=[]
             continue
 
@@ -63,7 +63,7 @@ fncode: csv(src)
     #-- potentially wrap last line
     $if not is_sol
         $call push_rec
-        row_list.append: cur_row
+        row_list.append(cur_row)
 
     return row_list
 
@@ -76,7 +76,7 @@ fncode: csv(src)
         $if len(cur_rec)>0 and cur_rec[0]=='"' and cur_rec[-1]=='"'
             cur_rec=re.sub('""', '"', cur_rec[1:-1])
 
-        cur_row.append: cur_rec
+        cur_row.append(cur_rec)
         cur_rec=""
         
 

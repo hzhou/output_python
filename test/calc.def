@@ -55,7 +55,7 @@ fncode: calc(src)
                 continue
         #-- shift ----
         $if $(cur_type)!="eof"
-            stack.append: cur
+            stack.append(cur)
         $else
             #-- end of stream, return ----
             $if len(stack)>0

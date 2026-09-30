@@ -91,7 +91,7 @@ subcode: parse_operator_precedence
                     # all 0 precedence closing opeartor is of type ')'
                     cur = ("eof", ")")
                     $if $(type:-1)=="boc"
-                        stack.append: ("", "")
+                        stack.append(("", ""))
                     break
                 $call @match
                 $call skip_unmatched_char
