@@ -8,25 +8,34 @@ macros:
 subcode: parsecode_print
     $if $func eq "die"
         my ($n, $fmt)=fmt_string($param, 0)
+        $call unescape_percent
         push @$out, "raise Exception($fmt)"
     $elif $func eq "warn"
         my ($n, $fmt)=fmt_string($param, 0)
+        $call unescape_percent
         push @$out, "print($fmt, file=sys.stderr)"
     $else
         $call get_print_to
         $if $print_to=~/^\@\$?(.+)/ # hack from perl syntax
             my $array = $1
             my ($n, $fmt)=fmt_string($param, 0)
+            $call unescape_percent
             $call @simplify
             $call push_to_array, $array
         $else
             my ($n, $fmt)=fmt_string($param, 1)
+            $call unescape_percent
             $call @hack_newline
             $call @simplify
             $if $print_to
                 $call print_to
             $else
                 $call print_1
+
+    subcode: unescape_percent
+        # no % operator applied without args
+        $if $n==0
+            $fmt=~s/%%/%/g
 
     subcode: push_to_array(A)
         push @$out, "$(A).append($fmt)"

@@ -30,6 +30,12 @@ subcode: init_page
 subcode: parsecode
     $if $l=~/^\$(\w+)\s*(.*?)\s*$/
         my ($func, $param)=($1, $2)
+        # directives return early, so scan their params here
+        $if $func !~ /^(import|try_import)$/
+            check_import($param)
+            check_fcall($param)
+        $if $func eq "warn"
+            add_import("sys")
         $if $func eq "global"
             my $use_G=MyDef::compileutil::get_macro_word("use_G", 1)
             # my @tlist=split /,\s*/, $param
