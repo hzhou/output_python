@@ -1,0 +1,78 @@
+Open issues in output_python
+============================
+
+Found 2026-09-30 while removing Python 2 support (9535ea3). Not fixed yet.
+
+
+1. Duplicate imports from fix_template
+--------------------------------------
+
+Symptom:
+
+    page: t, -
+        module: python
+        import os
+        print(os.sep)
+
+generates `import os` twice.
+
+Cause: `$import` and the automatic imports (check_import, e.g. `os.` in the
+code) go through add_import, whose dbl_push skips names already listed. But
+fix_template (in dumpout) moves the page's leading `import` / `from ...
+import` lines into the import list with a raw `push @imports`, which does not
+check. So a page's own `import os` plus the automatic one for `os.sep` both
+end up in the file.
+
+Plan:
+
+- In fix_template, use the same helpers: add_import($1) for `import x`,
+  add_import("$2 from $1") for `from x import y` (the form `$import` already
+  uses), and add_import_future($2) for `__future__`.
+- Split `import a, b` into separate names, so `import os, sys` does not
+  sit alongside a separate automatic `os`.
+- Side effect: the page's own imports then come after the automatic ones,
+  since they are added later, at dump time. They are still at the top of the
+  file. If the page's imports should stay first, insert them ahead instead.
+
+
+2. `from __future__` ends up inside `def main():`
+------------------------------------------------
+
+Symptom:
+
+    page: t
+        module: python
+        from __future__ import annotations
+        x: int = 3
+        print(x)
+
+puts the `from __future__` line inside `def main():`. Python rejects it:
+future imports must come first in the file.
+
+Cause: fix_template only looks at the start of the output, which is where
+page code lands only on a page with no frame (`page: t, -`). With the
+default basic_frame, the page code is indented inside `def main():`, so the
+line stays there.
+
+Plan:
+
+- In parsecode, catch any line `from __future__ import a, b` wherever it
+  appears, pass each name to add_import_future, and do not write the line
+  where it stands. dumpout already writes the collected names first in the
+  file, so this works with any frame.
+- The `__future__` branch in fix_template is then never reached; remove it.
+- Ordinary `import x` lines inside page code stay where they are. Inside
+  main() they are valid Python, and moving them would change what existing
+  pages generate.
+
+
+Checking
+--------
+
+- Add a test page to test/ covering both cases: a default-frame page with
+  `from __future__ import annotations`, and a no-frame page with `import os`
+  plus `os.sep`. Run both with python and confirm there are no duplicate
+  imports.
+- Compile the existing tests before and after and expect identical output;
+  none of them start with import lines or use `__future__`.
+- Rebuild, install (`make && make install`), commit, and push.
