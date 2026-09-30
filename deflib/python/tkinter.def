@@ -1,12 +1,12 @@
 subcode: _autoload
-    $(if:PYTHON3)
-        from tkinter import *
-    $(else)
+    $(if:PYTHON2)
         from Tkinter import *
+    $(else)
+        from tkinter import *
 
 subcode: tkinter
     win_main = Tk()
-    $call main2
+    $call @main
     win_main.mainloop()
 
     subcode: add_canvas(w, h)
