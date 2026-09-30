@@ -1,55 +1,114 @@
 ## MyDef Extension -- MyDef::output_python.pm
 
-This is an extension to [MyDef](https://github.com/hzhou/MyDef) for writing Python code. 
+This is an extension to [MyDef](https://github.com/hzhou/MyDef) for writing Python code. Use it with `module: python`; pages compile to `.py` (Python 3 by default).
 
-In addition to the general macro facilities provided by MyDef, output_python adds following features:
+    page: hello
+        module: python
 
-* Let's you use `$if`, `$elif`, `$else`, `$while`, `$for`, which fits the styles of MyDef's Perl/C extensions. 
+        $print Hello World!
 
-* Let's you optionally omit the trailing `:` after `if|elif|else|while|for|def`.
-
-* `$do`, a sequence construct where you can `break` or `continue`
-
-* `$if_match regex`, let's you use re like in Perl. It will inject re.compile to a global stub (`DUMP_STUB regex_compile`) to avoid repeated compilation. It uses default variable `src`, `src_pos` and uses `re.match`.
-
-* Let's you write `print` without mandatory function call parentheses in Python 3.
-
-* Let's you write all function call statement without parentheses, e.g. `mylist.append: (a, tuple)`.
-
-* Supports `$print` as we did in C and Perl (mixing literal and variables)
-
-* `$import` and `$global`, let's you scatter them to where it is relavant.
-
-* Automatically loads std_python.def, which always calls your main code in `if __name__ == "__main__"`.
+`mydef_page hello.def` writes `hello.py`; `mydef_run hello.def` also runs it.
 
 #### Install
 
-1. It depends on [MyDef](https://github.com/hzhou/MyDef) -- Hopefully, the instruction there is sufficient.
+MyDef must be installed first, with `MYDEFSRC` pointing to the MyDef source directory (and `PERL5LIB`/`MYDEFLIB` set as in MyDef's install).
 
-2. Define environment variable `MYDEFSRC` to the path where you downloaded MyDef.
+    mydef_make
+    make
+    make install
 
-3. `mydef_make`
+`make install` installs `MyDef/output_python.pm` into `$PERL5LIB`, `std_python.def` and `python/*.def` into `$MYDEFLIB`, and the `perl_to_python` script into `~/bin`.
 
-4. `touch output_python.def && make`
+To refresh after editing, `make && make install` is enough, unless new `.def` files were added (then rerun `mydef_make` first).
 
-5. Makefile.PL in `MyDef-output_python/`:
+#### Page structure
 
-        cd MyDef-output_python
-        pmake
-        make
-        cd ..
+`std_python.def` is loaded automatically. The page body becomes `def main():` and is called from `if __name__ == "__main__":`. `fncode:` blocks become module-level functions after `main`. Imports and globals are collected at the top of the file.
 
-6. `mydef_make`  # again to pull the sub Makefile
+    page: test
+        module: python
 
-7. `make install`
+        s = get_name()
+        $print s = $s
 
-8. `sh install_def.sh`
+    fncode: get_name
+        return "World"
+
+#### Features
+
+In addition to the general macro facilities provided by MyDef, output_python adds:
+
+* **Relaxed syntax** -- the trailing `:` after `if|elif|else|while|for|def` is optional; `print x` becomes `print(x)`; `n++`/`n--` become `n+=1`/`n-=1`.
+
+* **`$if`, `$elif`, `$else`, `$while`** -- the same style as MyDef's Perl/C extensions. `$if !cond` becomes `if not cond:`. `$while cond; step` puts `step` at the end of the loop body.
+
+* **`$for` / `$foreach`**
+
+    | MyDef | Python |
+    |-------|--------|
+    | `$for i=0:10` | `for i in range(10):` |
+    | `$for i=2:10` | `for i in range(2,10):` |
+    | `$for N` | `for _i in range(N):` |
+    | `$for x in L` | `for x in L:` |
+    | `$for a, b in A, B` | `for a, b in zip(A, B):` |
+    | `$for i, x in L` | `for i, x in enumerate(L):` |
+    | `$for i, a, b in A, B` | `for i, a, b in zip(range(len(A)), A, B):` |
+
+* **`$do`** -- a block you can `break` out of or `continue` to repeat. It compiles to `while 1:` with a `break` at the end.
+
+* **`$def name(params)`** -- an inline `def`; the parentheses may be omitted when there are no parameters.
+
+* **`$print`** -- mixes literal text with `$var` and `${expr}`, as in the C and Perl extensions:
+
+        $print n=$n, root=${sqrt(n)}    # print("n=%s, root=%s" % (n, sqrt(n)))
+        $print no newline-              # print("no newline", end='')
+
+    Inside `$(set:print_to=Out)` it prints to that file; with `$(set:print_to=@lines)` it appends the string to the list `lines`. Related: `$dump a, b` prints `a = ..., b = ...`; `$warn msg` prints to `sys.stderr`; `$die msg` raises `Exception`.
+
+* **`$import`, `$try_import`, `$global`** -- place them where they are relevant; they are collected at the top of the file.
+    * `$import re`, `$import numpy as np`, `$import sqrt from math` (becomes `from math import sqrt`).
+    * `$try_import numpy as np` wraps the import in `try/except ImportError` and sets `has_numpy`.
+    * Uses of `re.`, `os.`, `sys.`, `copy.`, `glob.` are imported automatically.
+    * `$global cnt = 5` defines `cnt` at module level and emits `global cnt` in the current function.
+
+* **Perl-style regex in conditions** -- with optional capture binding:
+
+        $if s=~/^(\w+) (\w+)/ -> first, second
+            $print $second $first
+        $elif s !~ /xyz/i
+            ...
+
+    A pattern starting with `^` uses `re.match`, otherwise `re.search`; flags `imsx` map to `re.I` etc. A bare `/pattern/` matches against `line` (the loop variable of `open_r`).
+
+* **`$if_match pattern`** -- for writing lexers. It matches at `src_pos` in `src`, advances `src_pos` on success, and leaves the match in `m`. The compiled regexes are placed at `DUMP_STUB regex_compile` (or at the top of the file) to avoid repeated compilation.
+
+#### Standard library
+
+`std_python.def` (autoloaded):
+
+* `&call open_r, fname` -- loop over lines of a file as `line`.
+* `&call open_w, fname` / `&call open_W, fname` -- write to file handle `Out`; `open_W` also reports the file name and directs `$print` to it.
+* `$call dict_inc, D, key` -- count occurrences in a dict.
+* `$(ternary:cond, a, b)` -- `a if cond else b`.
+* `$call start_time` / `$call print_time, msg` -- simple timing.
+* `$call error, msg` -- raise `Exception`.
+
+Optional, via `include:`:
+
+* `python/parse.def` -- `parse_loop`, `parse_frame`, `if_match_continue`, `if_match_break`, and `parse_operator_precedence` for building parsers.
+* `python/tkinter.def` -- a Tkinter main window frame.
+
+Python 2 output can be selected by defining the macro `PYTHON2` (adds `from __future__` imports and uses `raw_input`).
+
+#### perl_to_python
+
+`perl_to_python in.def out.def` converts a MyDef source written for `module: perl` into one for `module: python` (Perl statements such as `my`, `push`, `s///`, `system`, `chomp` are translated; MyDef directives are kept). Wrap Perl-only parts in `/* skip python ... */`.
 
 #### Demo
 
     page: calc, basic_frame
         module: python
-        
+
         print calc("1+2*-3")
 
     fncode: calc(src)
@@ -108,7 +167,7 @@ In addition to the general macro facilities provided by MyDef, output_python add
 
             #-- shift ----
             $if $(cur_type)!="eof"
-                stack.append: cur
+                stack.append(cur)
             $else
                 $if len(stack)>0
                     return stack[-1][0]
@@ -125,5 +184,5 @@ In addition to the general macro facilities provided by MyDef, output_python add
             $elif $(type:-2)=='$(op)'
                 t = $(atom:-3) $(op) $(atom:-1)
                 stack[-3:]=[(t, "num")]
-                
 
+This prints `-5.0`. More examples are in `test/`.
